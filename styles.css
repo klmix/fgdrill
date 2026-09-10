@@ -1,0 +1,19 @@
+/* ============================================================
+   Shared reset. The colour palette lives in combo.css so that
+   every theme is defined in one place.
+   ============================================================ */
+* { box-sizing: border-box; }
+
+html, body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--page-bg);
+  color: var(--tile-fg);
+  font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}

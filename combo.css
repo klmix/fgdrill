@@ -1,0 +1,2305 @@
+/* ============================================================
+   Stellschrauben der Combo-Seite
+   ============================================================ */
+:root {
+  /* Moved here from styles.css: keeping one half of the palette in
+     another file is how the green button drifted apart in the first place. */
+  --page-bg: #ffffff;
+  --tile-fg: #222222;   /* default text colour */
+  --accent: #3b82f6;    /* focus and selection */
+  --go: #16a34a;        /* start / dojo - identical in every theme */
+  --go-hover: #15803d;
+  --grind: #d97706;     /* training without a schedule */
+  --grind-hover: #b45309;
+
+  --composer-width: 720px;        /* Breite von Eingabefeld + Popover */
+  --composer-radius: 22px;
+  --composer-border: #d4d4d4;
+  --composer-bg: #ffffff;
+  --input-font-size: 16px;
+  --input-min-height: 56px;       /* Starthöhe des Textfelds */
+  --input-max-height: 260px;      /* danach scrollt es */
+
+  --char-tile-size: 60px;         /* Icongroesse im Auswahlmenue */
+  --char-menu-width: calc(var(--composer-width) * 0.75); /* 3/4 Textfeldbreite */
+  --entry-icon-size: 27px;        /* Icongroesse in der Combo-Liste */
+  /* Abstand ueber und unter dem Logo. Derselbe Wert an beiden Stellen -
+     nur so sitzt es genau in der Mitte der freien Flaeche. */
+  --brand-gap: clamp(20px, 7.5vh, 76px);
+  --stop: #dc2626;                /* laufendes Training abbrechen */
+  --stop-hover: #b91c1c;
+
+  --muted: #6b7280;
+  --hairline: #e5e7eb;
+
+  /* Button-Farben der Combo-Notation (Dustloop-Schema) */
+  --tok-p: #e250a4;   /* Punch  */
+  --tok-k: #2f8fd8;   /* Kick   */
+  --tok-s: #3aa757;   /* Slash  */
+  --tok-h: #d93f3f;   /* Heavy Slash */
+  --tok-d: #e8912b;   /* Dust   */
+  --tok-rc: #8b5cf6;  /* Roman Cancel */
+  --tok-ch: #ff7300;  /* Counter Hit */
+  --tok-act: #0891b2; /* Bewegung und Cancels: dash, 66, jc, IAD ... */
+  --tok-dir: #4b5563; /* Richtungseingaben (236, 2, j. ...) */
+  --tok-sep: #9ca3af; /* > , ~ ( ) usw. */
+  --tok-text: var(--muted); /* alles, was keine Notation ist */
+
+  /* --- Flaechen und Text -------------------------------------
+     Nur diese Rollen werden fuers dunkle Thema getauscht; im
+     restlichen Stylesheet stehen keine festen Farben mehr. */
+  --surface: #ffffff;          /* Karten, Menues, Knoepfe */
+  --fill-soft: #f7f8fa;        /* leise Fuellung, z.B. Eingabefelder */
+  --fill: #f3f4f6;             /* Chips, ruhende Knoepfe */
+  --fill-hover: #e8e9ec;
+  --fill-strong: #e9eaee;      /* Platzhalter hinter Portraits */
+  --border-strong: #bdbdbd;
+
+  --text-soft: #374151;
+  --text-faint: #9ca3af;
+  --text-fainter: #b6bcc5;     /* Platzhalter, Griffe */
+
+  --invert-hover: #3a3a3a;     /* Hover des dunklen Sende-Knopfs */
+  --invert-fg: #ffffff;        /* Text auf --tile-fg als Flaeche */
+
+  /* Sende-Knopf: standardmaessig dunkel, im Spiel-Thema rot. */
+  --send-bg: var(--tile-fg);
+  --send-bg-hover: var(--invert-hover);
+  --send-fg: var(--invert-fg);
+
+  /* Abgesetzter Block in einer Meldung - haengt am Meldungsgrund. */
+  --code-bg: rgba(255,255,255,.7);
+
+  --accent-soft: #eef4ff;
+  --accent-soft-hover: #e0ebff;
+  --accent-hover: #2563eb;
+
+  /* --- Bewertungen ------------------------------------------- */
+  --again-bg: #fee2e2;  --again-bg-hover: #fecaca;  --again-fg: #b91c1c;
+  --hard-bg:  #ffedd5;  --hard-bg-hover:  #fed7aa;  --hard-fg:  #c2410c;
+  --good-bg:  #dbeafe;  --good-bg-hover:  #bfdbfe;  --good-fg:  #1d4ed8;
+  --easy-bg:  #dcfce7;  --easy-bg-hover:  #bbf7d0;  --easy-fg:  #15803d;
+
+  /* --- Hinweise ---------------------------------------------- */
+  --danger: #ef4444;
+  --danger-weak: #ef8a8a;
+  --danger-soft: #fef2f2;
+  --warn-soft: #fff7ed;
+  --drill-soft: #fef3c7;
+  --drill-fg: #92400e;
+
+  --shadow-soft: rgba(0,0,0,.06);
+  --shadow-mid: rgba(0,0,0,.12);
+  --shadow-strong: rgba(0,0,0,.2);
+
+  /* Sagt dem Browser, wie er Haken, Zahlenfelder und Scrollleisten
+     zeichnen soll - die folgen sonst keinem eigenen CSS. */
+  color-scheme: light;
+}
+
+/* ============================================================
+   Dunkles Thema
+   Getauscht werden nur die Rollen oben - alles Weitere folgt.
+   ============================================================ */
+/* ============================================================
+   Game theme - the default.
+   Palette taken from the Strive character page: a signature red on
+   near-black, with off-white text.
+   ============================================================ */
+[data-theme="game"] {
+  color-scheme: dark;
+
+  --code-bg: rgba(0,0,0,.35);
+
+  --page-bg: #0a0a0a;
+  --composer-bg: #1b1b1b;
+  --composer-border: #3a3838;
+  --hairline: #2a2a2a;
+
+  --surface: #1b1b1b;
+  --fill-soft: #232323;
+  --fill: #272727;
+  --fill-hover: #333333;
+  --fill-strong: #3a3838;
+  --border-strong: #4d4b4b;
+
+  --tile-fg: #f2f2f2;
+  --muted: #9d9d9d;
+  --text-soft: #cfcfcf;
+  --text-faint: #818181;
+  --text-fainter: #5b5b5b;
+
+  --invert-hover: #d8d8d8;
+  --invert-fg: #0a0a0a;
+
+  /* Das Rot traegt das Thema, nicht nur die Fokusringe. */
+  --accent: #f13932;
+  --accent-hover: #f24b44;
+  --accent-soft: #3b0b06;
+  --accent-soft-hover: #55100a;
+
+  /* Der Sende-Knopf ist die Hauptaktion der Eingabe - hier in Rot. */
+  --send-bg: #f13932;
+  --send-bg-hover: #f24b44;
+  --send-fg: #ffffff;
+
+  --tok-p: #f472b6;
+  --tok-k: #60a5fa;
+  --tok-s: #4ade80;
+  --tok-h: #f87171;
+  --tok-d: #fbbf24;
+  --tok-rc: #a78bfa;
+  --tok-ch: #e879f9;
+  --tok-act: #22d3ee;
+  --tok-dir: #8d8d8d;
+  --tok-sep: #6d6d6d;
+
+  --again-bg: #3d1f1d;  --again-bg-hover: #4c2724;  --again-fg: #fca5a5;
+  --hard-bg:  #3d2c1b;  --hard-bg-hover:  #4b3722;  --hard-fg:  #fdba74;
+  --good-bg:  #1c2b44;  --good-bg-hover:  #243553;  --good-fg:  #93c5fd;
+  --easy-bg:  #1a3527;  --easy-bg-hover:  #214130;  --easy-fg:  #86efac;
+
+  --danger: #f87171;
+  --danger-weak: #b45b5b;
+  --danger-soft: #371c1a;
+  --warn-soft: #372a18;
+  --drill-soft: #382d11;
+  --drill-fg: #fcd34d;
+
+  --shadow-soft: rgba(0,0,0,.45);
+  --shadow-mid: rgba(0,0,0,.6);
+  --shadow-strong: rgba(0,0,0,.75);
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --code-bg: rgba(0,0,0,.35);
+
+  --page-bg: #14171c;
+  --composer-bg: #1c2027;
+  --composer-border: #333944;
+  --hairline: #2b3038;
+
+  --surface: #1c2027;
+  --fill-soft: #232830;
+  --fill: #272c35;
+  --fill-hover: #313742;
+  --fill-strong: #39404b;
+  --border-strong: #4b525d;
+
+  --tile-fg: #e7eaef;
+  --muted: #98a1af;
+  --text-soft: #c3cad4;
+  --text-faint: #7a838f;
+  --text-fainter: #5f6874;
+
+  --invert-hover: #cdd3dc;
+  --invert-fg: #14171c;
+
+  --accent: #60a5fa;
+  --accent-soft: #1e2a3d;
+  --accent-soft-hover: #25344a;
+  --accent-hover: #3b82f6;
+
+  /* Notation: dieselben Farbtoene, aber hell genug fuer dunklen Grund. */
+  --tok-p: #f472b6;
+  --tok-k: #60a5fa;
+  --tok-s: #4ade80;
+  --tok-h: #f87171;
+  --tok-d: #fbbf24;
+  --tok-rc: #a78bfa;
+  --tok-ch: #e879f9;
+  --tok-act: #22d3ee;
+  --tok-dir: #8b95a3;
+  --tok-sep: #6b7481;
+
+  --again-bg: #40242a;  --again-bg-hover: #4f2b32;  --again-fg: #fca5a5;
+  --hard-bg:  #402f1e;  --hard-bg-hover:  #4f3a24;  --hard-fg:  #fdba74;
+  --good-bg:  #1e2f4a;  --good-bg-hover:  #263a59;  --good-fg:  #93c5fd;
+  --easy-bg:  #1c3a2a;  --easy-bg-hover:  #234634;  --easy-fg:  #86efac;
+
+  --danger: #f87171;
+  --danger-weak: #b45b5b;
+  --danger-soft: #3a2020;
+  --warn-soft: #3a2c1a;
+  --drill-soft: #3b2f12;
+  --drill-fg: #fcd34d;
+
+  --shadow-soft: rgba(0,0,0,.35);
+  --shadow-mid: rgba(0,0,0,.5);
+  --shadow-strong: rgba(0,0,0,.65);
+}
+
+/* ============================================================
+   Seite
+   ============================================================ */
+[hidden] { display: none !important; }
+
+/* Seite darf mitwachsen, wenn das Menue offen ist oder die Liste waechst */
+body.page-scrolls { height: auto; min-height: 100vh; }
+
+/* Oben verankert statt vertikal zentriert. Beim Zentrieren verschiebt
+   jede Aenderung darunter - eine wachsende Liste, ein aufgeklappter
+   Eintrag - die Karte nach oben. Sie soll aber stehenbleiben; alles
+   Weitere waechst nach unten und die Seite scrollt. */
+.page-scrolls {
+  align-items: flex-start;
+  justify-content: center;
+  padding: var(--brand-gap) 24px 96px;
+}
+
+/* Die Spalte gibt die Breite vor. Die Karte darunter kann das nicht:
+   ihre beiden Seiten sind absolut positioniert und tragen keine
+   Eigenbreite bei. */
+.composer {
+  width: 100%;
+  max-width: var(--composer-width);
+}
+
+/* ============================================================
+   Logo ueber der Karte
+   ============================================================ */
+/* --brand-p laeuft beim Scrollen von 0 auf 1 und wird in combo.js
+   gesetzt. Nur Transform und Deckkraft haengen daran - beides kostet
+   kein neues Layout, das Bild schiebt also nichts hin und her. */
+.brand {
+  /* Flex statt text-align: als Zeileninhalt haenge das Bild an einer
+     Grundlinie und ragte um ein paar Pixel aus der Ueberschrift heraus -
+     der Abstand darunter waere dann nicht mehr derselbe wie darueber. */
+  display: flex;
+  justify-content: center;
+  margin: 0 0 var(--brand-gap);
+}
+
+.brand__img {
+  width: clamp(240px, 40vw, 420px);
+  height: auto;
+  /* Schrumpft zur Karte hin, nicht zur Bildmitte. */
+  transform-origin: 50% 100%;
+  transform: scale(calc(1 - .45 * var(--brand-p, 0)));
+  opacity: calc(1 - var(--brand-p, 0));
+  will-change: transform, opacity;
+}
+
+/* Wer Bewegung nicht mag, bekommt nur das Ausblenden. */
+@media (prefers-reduced-motion: reduce) {
+  .brand__img { transform: none; }
+}
+
+/* Kopf, Karte und Werkzeugzeile bleiben oben am Bildschirmrand stehen.
+   Der eigene Grund deckt die Combo-Liste ab, die darunter durchlaeuft;
+   der waagerechte Ueberstand faengt Schatten und Rahmen der Liste mit. */
+.composer__stick {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  background: var(--page-bg);
+  padding: 12px 14px 8px;
+  margin: -12px -14px 0;
+}
+
+/* ============================================================
+   Kopfzeile: fuer welchen Charakter, und Training starten
+   ============================================================ */
+.composer__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+/* Das Menue ist breiter als der Knopf, also braucht es diesen Bezugsrahmen. */
+.picker--who { position: relative; }
+
+.who-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  max-width: 100%;
+  /* Links mehr Luft: die runde Kappe der Pille kommt dem Bild sonst
+     naeher als der Abstand oben und unten. */
+  padding: 5px 14px 5px 9px;
+  background: var(--surface);
+  color: var(--tile-fg);
+  border: 1px solid var(--composer-border);
+  border-radius: 999px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color .12s ease, border-color .12s ease;
+}
+.who-button:hover { background: var(--fill-soft); }
+.who-button[aria-expanded="true"] { background: var(--fill-hover); border-color: var(--border-strong); }
+.who-button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Waehrend des Trainings steht der Charakter fest: kein Pfeil, kein Klick. */
+.who-button.is-static {
+  pointer-events: none;
+  cursor: default;
+  background: var(--surface);
+}
+.who-button.is-static .picker-button__caret { display: none; }
+
+.who-button__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Training starten - die Hauptaktion, deshalb gefuellt und gruen. */
+.go-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  padding: 8px 16px 8px 14px;
+  background: var(--go);
+  color: #fff;
+  border: 0;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 1px 2px var(--shadow-mid), 0 4px 12px rgba(22,163,74,.26);
+  transition: background-color .12s ease, transform .12s ease, box-shadow .12s ease;
+}
+.go-button svg { width: 16px; height: 16px; flex: none; }
+.go-button:hover { background: var(--go-hover); }
+.go-button:active { transform: translateY(1px); }
+.go-button:focus-visible { outline: 2px solid var(--go); outline-offset: 3px; }
+
+/* Symbolwechsel per Klasse, nicht per hidden: bei einem <svg> ist .hidden
+   keine DOM-Eigenschaft (die gibt es nur an HTMLElement) und bliebe wirkungslos. */
+.go-button__stop { display: none; }
+.go-button.is-stop .go-button__play { display: none; }
+.go-button.is-stop .go-button__stop { display: block; }
+
+/* Ohne Plan geuebt: der Knopf wechselt auf Orange, damit man nicht
+   glaubt, gerade seine faelligen Wiederholungen zu machen. */
+.go-button.is-grind {
+  background: var(--grind);
+  box-shadow: 0 1px 2px var(--shadow-mid), 0 4px 12px rgba(217,119,6,.26);
+}
+.go-button.is-grind:hover { background: var(--grind-hover); }
+.go-button.is-grind:focus-visible { outline-color: var(--grind); }
+
+/* Laeuft ein Training, wird aus Start ein rotes Stop mit Uhr. */
+.go-button.is-stop {
+  background: var(--stop);
+  box-shadow: 0 1px 2px var(--shadow-mid), 0 4px 12px rgba(220,38,38,.26);
+}
+.go-button.is-stop:hover { background: var(--stop-hover); }
+.go-button.is-stop:focus-visible { outline-color: var(--stop); }
+
+/* Damit die laufende Uhr den Knopf nicht zappeln laesst. */
+#dojoLabel { font-variant-numeric: tabular-nums; }
+
+/* Ohne gespeicherte Combos gibt es nichts zu trainieren. */
+.go-button[disabled] {
+  background: var(--fill-hover);
+  color: var(--text-faint);
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+/* Einstellungen sitzen neben dem Start: sie betreffen das Training. */
+.head-icon {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  color: var(--muted);
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: background-color .12s ease, color .12s ease;
+}
+.head-icon svg { width: 18px; height: 18px; }
+.head-icon:hover { background: var(--fill); color: var(--tile-fg); }
+.head-icon:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Das Popover haengt an diesem Rahmen, nicht an der ganzen Spalte -
+   sonst wuerde es unter die Combo-Liste rutschen. */
+.composer__top { position: relative; }
+
+/* ============================================================
+   Eingabefeld
+   ============================================================ */
+.composer__box {
+  background: var(--composer-bg);
+  border: 1px solid var(--composer-border);
+  border-radius: var(--composer-radius);
+  padding: 14px 14px 10px;
+  box-shadow: 0 1px 2px var(--shadow-soft), 0 8px 24px var(--shadow-soft);
+  transition: border-color .12s ease, box-shadow .12s ease;
+}
+
+.composer__box:focus-within {
+  border-color: var(--border-strong);
+  box-shadow: 0 1px 2px var(--shadow-soft), 0 10px 30px var(--shadow-mid);
+}
+
+/* Textfeld + farbige Ebene muessen exakt gleich umbrechen,
+   sonst laufen Schrift und Faerbung auseinander. */
+.editor {
+  position: relative;
+}
+
+.editor__highlight,
+.composer__input {
+  padding: 4px 6px;
+  font: inherit;
+  font-size: var(--input-font-size);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  word-break: normal;
+  letter-spacing: normal;
+  /* Beide Ebenen brauchen dasselbe Grundgewicht, sonst laufen Caret und
+     Faerbung auseinander: Combo-Terme sind fett, also ist 700 die Basis. */
+  font-weight: 700;
+}
+
+.editor__highlight {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  color: var(--tile-fg);
+}
+
+.composer__input {
+  position: relative;
+  display: block;
+  width: 100%;
+  min-height: var(--input-min-height);
+  max-height: var(--input-max-height);
+  border: 0;
+  outline: none;
+  resize: none;
+  overflow-y: auto;
+  background: transparent;
+  /* Text unsichtbar - sichtbar ist die eingefaerbte Ebene darunter. */
+  color: transparent;
+  caret-color: var(--tile-fg);
+}
+
+.composer__input::placeholder { color: var(--text-faint); font-weight: 500; }
+
+/* Farben der Notation - der ganze Term traegt die Farbe, nicht nur der Button */
+.tok-P  { color: var(--tok-p);  }
+.tok-K  { color: var(--tok-k);  }
+.tok-S  { color: var(--tok-s);  }
+.tok-H  { color: var(--tok-h);  }
+.tok-D  { color: var(--tok-d);  }
+.tok-RC { color: var(--tok-rc); }
+.tok-act { color: var(--tok-act); }
+
+/* Counter Hit steht vor der Combo und gilt fuer alles danach -
+   kursiv, damit es nicht als weiterer Move gelesen wird. */
+.tok-CH {
+  color: var(--tok-ch);
+  font-style: italic;
+}
+
+/* Vollstaendige Combo-Terme (236K, 5K, 4[H], RC) werden fett hervorgehoben. */
+.tok-move { font-weight: 700; }
+
+/* Was keine Notation ist, ist eine Notiz - zurueckhaltend ueber die Farbe.
+   Das Gewicht bleibt bei 700: die farbige Ebene liegt hinter dem Textfeld
+   und muss dieselbe Breite rendern, sonst wandert der Cursor weg. */
+.tok-text { color: var(--tok-text); }
+
+/* Lose Richtungen und Trenner bleiben zurueckhaltend. */
+.tok-dir { color: var(--tok-dir); font-weight: 500; }
+.tok-sep { color: var(--tok-sep); font-weight: 500; }
+
+.composer__bar {
+  position: relative;   /* Bezugsrahmen fuer das breite Charakter-Menue */
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+/* ============================================================
+   Auswahl-Button
+   ============================================================ */
+.picker-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  padding: 7px 12px;
+  background: var(--surface);
+  color: var(--tile-fg);
+  border: 1px solid var(--composer-border);
+  border-radius: 999px;
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background-color .12s ease, border-color .12s ease;
+}
+.picker-button:hover { background: var(--fill-soft); }
+.picker-button[aria-expanded="true"] { background: var(--fill-hover); border-color: var(--border-strong); }
+.picker-button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.picker-button__icon { width: 16px; height: 16px; flex: none; color: var(--muted); }
+
+/* Das Positions-Symbol zeigt die gerade gewaehlte Buehne. */
+.picker-button__stage {
+  display: inline-flex;
+  flex: none;
+  color: var(--muted);
+}
+.picker-button__stage-svg { width: 20px; height: 14px; }
+.picker-button__caret { width: 14px; height: 14px; flex: none; color: var(--muted); }
+.picker-button__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.send-button {
+  margin-left: auto;
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  background: var(--send-bg);
+  color: var(--send-fg);
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
+}
+.send-button svg { width: 18px; height: 18px; }
+.send-button:hover { background: var(--send-bg-hover); }
+.send-button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ============================================================
+   Positions-Menue
+   ============================================================ */
+.picker { position: relative; }
+
+.menu {
+  position: absolute;
+  top: calc(100% + 10px);
+  left: 0;
+  z-index: 30;
+  min-width: 210px;
+  padding: 6px;
+  background: var(--surface);
+  border: 1px solid var(--composer-border);
+  border-radius: 12px;
+  box-shadow: 0 10px 30px var(--shadow-mid);
+}
+
+.menu__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 14px;
+  color: var(--tile-fg);
+  text-align: left;
+  cursor: pointer;
+}
+.menu__item:hover { background: var(--fill); }
+.menu__item:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+.menu__stage { width: 26px; height: 18px; flex: none; color: var(--muted); }
+.menu__item.is-active .menu__stage { color: var(--accent); }
+.menu__item.is-active { font-weight: 600; }
+
+.menu__label { flex: 1; }
+
+.menu__check { width: 16px; height: 16px; flex: none; color: var(--accent); visibility: hidden; }
+.menu__item.is-active .menu__check { visibility: visible; }
+
+/* ============================================================
+   Charakter-Menue (klappt am Button aus, wie das Positions-Menue)
+   ============================================================ */
+/* Das Menue ist breiter als sein Button, deshalb haengt es am Balken statt
+   am Button - sonst schoebe ein langes Positions-Label es aus der Box. */
+.picker--chars { position: static; }
+
+.char-menu {
+  position: absolute;
+  top: calc(100% + 10px);
+  left: 0;
+  z-index: 30;
+  width: var(--char-menu-width);
+  max-width: calc(100vw - 48px);
+  padding: 8px;
+  background: var(--surface);
+  border: 1px solid var(--composer-border);
+  border-radius: 12px;
+  box-shadow: 0 10px 30px var(--shadow-mid);
+}
+
+.char-menu__tools {
+  display: flex;
+  gap: 6px;
+  padding: 0 2px 8px;
+}
+
+.chip {
+  padding: 5px 12px;
+  background: var(--fill);
+  color: var(--text-soft);
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.chip:hover { background: var(--fill-hover); }
+.chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ============================================================
+   Charakter-Grid
+   ============================================================ */
+/* Reine Icon-Kacheln: der ganze Roster passt ohne Scrollen ins Menue. */
+.char-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, var(--char-tile-size));
+  justify-content: space-between;
+  gap: 5px;
+}
+
+.char {
+  display: block;
+  padding: 0;
+  aspect-ratio: 1 / 1;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+  cursor: pointer;
+  font: inherit;
+  overflow: hidden;
+  transition: border-color .1s ease, box-shadow .1s ease, transform .1s ease;
+}
+.char:hover { background: var(--fill-soft); border-color: var(--border-strong); }
+.char:active { transform: translateY(1px); }
+.char:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.char[aria-pressed="true"] {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+/* Abgewaehlt: blass und entsaettigt, damit die Auswahl auf einen Blick sitzt. */
+.char[aria-pressed="false"] { opacity: .4; filter: grayscale(1); }
+.char[aria-pressed="false"]:hover { opacity: .7; }
+
+/* Beim eigenen Charakter waehlt man genau einen - 31 ausgegraute Kacheln
+   waeren hier nur Rauschen, es reicht der Rahmen um den gewaehlten. */
+.char-grid--single .char[aria-pressed="false"] { opacity: 1; filter: none; }
+.char-grid--single .char:hover { border-color: var(--border-strong); }
+
+/* Gemeinsame Basis aller Charakter-Icons; die Zweitklasse setzt nur
+   Groesse und Radius. Das Kuerzel steht drin, bis ein Bild da ist. */
+.char-icon {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex: none;
+  background: var(--fill-strong);
+  color: var(--text-soft);
+  font-weight: 700;
+  letter-spacing: .02em;
+  overflow: hidden;
+}
+
+.char-icon img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.char__portrait { width: 100%; height: 100%; font-size: 11px; }
+/* Rund statt eckig: folgt der Form der Pille, damit der Abstand ringsum
+   gleich wirkt. */
+.who-button__icon { width: 24px; height: 24px; border-radius: 50%; font-size: 8px; }
+.group__portrait  { width: 26px; height: 26px; border-radius: 6px; font-size: 9px; }
+
+/* ============================================================
+   Liste der angelegten Combos
+   Ohne Eintraege steht hier nichts - kein Titel, kein Rahmen.
+   ============================================================ */
+.entries {
+  position: relative;
+  z-index: 1;
+  margin: 16px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Ein Rahmen je Charakter. */
+.group {
+  border: 1px solid var(--hairline);
+  border-radius: 14px;
+  padding: 11px 14px 14px;
+  background: var(--composer-bg);
+}
+
+.group__head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding-bottom: 10px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.group__name {
+  flex: 1;
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: .01em;
+}
+
+.group__count {
+  flex: none;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.group__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+}
+
+/* Zeigt den eingeklappten Rest eines Charakters. */
+.group__more {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 12px;
+  padding: 4px 9px 4px 5px;
+  background: transparent;
+  color: var(--muted);
+  border: 0;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background-color .12s ease, color .12s ease;
+}
+.group__more:hover { background: var(--fill); color: var(--tile-fg); }
+.group__more:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.group__more svg { width: 15px; height: 15px; transition: transform .15s ease; }
+.group__more.is-open svg { transform: rotate(180deg); }
+
+.entry {
+  position: relative;
+  padding: 0 30px 0 0;
+}
+
+/* Combo links, Zusatzinfo rechts in derselben Zeile. */
+/* Zwei Spalten, beide oben beginnend. Nur so bleibt die linke Spalte
+   von der Hoehe der rechten unabhaengig. */
+.entry__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.entry__left {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Symbol, Combo und Marken in einer Zeile. Der Zeilenumbruch-Modus sitzt
+   auf der Combo selbst, damit die Leerzeichen der Notation erhalten
+   bleiben, ohne dass Symbol und Marken davon betroffen sind. */
+.entry__text {
+  display: block;
+  margin: 0;
+  font-size: var(--input-font-size);
+  line-height: 1.5;
+  font-weight: 700;
+  overflow-wrap: break-word;
+}
+
+.entry__stage {
+  width: 20px;
+  height: 14px;
+  margin-right: 7px;
+  vertical-align: -1px;
+  color: var(--text-fainter);
+  flex: none;
+}
+
+.entry__combo {
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+
+/* Marken schliessen direkt an die Combo an. */
+.entry__tag {
+  margin-left: 7px;
+  vertical-align: 1px;
+}
+
+/* Rechte Spalte: Position, darunter die Marken. */
+.entry__meta {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.entry__info {
+  font-size: 13px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.entry__states {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+/* Marke: klein und ruhig. Farbe kommt aus dem Namen und wird beim
+   Erzeugen gesetzt - hier steht nur die Form. */
+.state-tag {
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* Charakter-Icons: nur da, wenn die Combo nicht fuer alle gilt. */
+.entry__chars {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 5px;
+}
+
+.entry__char {
+  width: var(--entry-icon-size);
+  height: var(--entry-icon-size);
+  border-radius: 5px;
+  font-size: 8px;
+}
+
+/* Ausgegraut = "gilt fuer alle ausser diesen". */
+.entries .entry__chars.is-muted .entry__char {
+  opacity: .4;
+  filter: grayscale(1);
+}
+
+.entry__tools {
+  position: absolute;
+  top: -3px;
+  right: 0;
+  display: flex;
+  gap: 2px;
+}
+
+.entry__toggle,
+.entry__remove {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  color: var(--text-faint);
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity .1s ease, background-color .1s ease, color .1s ease;
+}
+.entry__toggle svg { width: 15px; height: 15px; }
+.entry__remove svg { width: 13px; height: 13px; }
+
+.entry:hover .entry__toggle,
+.entry:hover .entry__remove,
+.entry__toggle:focus-visible,
+.entry__remove:focus-visible { opacity: 1; }
+
+/* Ausgenommene Combos zeigen den Schalter dauerhaft - sonst waere der
+   Zustand nur beim Ueberfahren erklaerbar. */
+.entry.is-off .entry__toggle { opacity: 1; color: var(--danger-weak); }
+
+.entry__toggle:hover { background: var(--fill); color: var(--tile-fg); }
+.entry__remove:hover { background: var(--fill); color: var(--danger); }
+.entry__toggle:focus-visible,
+.entry__remove:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* Nicht im Training: sichtbar, aber zurueckgenommen. */
+.entry.is-off .entry__head,
+.entry.is-off .entry__states,
+.entry.is-off .entry__chars,
+.entry.is-off .entry__comment { opacity: .42; }
+
+/* ============================================================
+   Umklappen zwischen Eingabe und Training
+   Beide Seiten liegen uebereinander und sind absolut positioniert,
+   deshalb setzt JS die Hoehe der Huelle auf die sichtbare Seite.
+   ============================================================ */
+/* perspective erzeugt einen eigenen Stacking-Kontext: das z-index der
+   Menues darin zaehlt nur noch innerhalb der Karte. Ohne eigenen Rang
+   liefe die spaeter im DOM stehende Combo-Liste darueber. */
+.composer__flip {
+  position: relative;
+  z-index: 20;
+  perspective: 1600px;
+}
+
+.flip {
+  position: relative;
+  transform-style: preserve-3d;
+  transition: transform .6s cubic-bezier(.4,.15,.2,1),
+              height    .6s cubic-bezier(.4,.15,.2,1);
+}
+.flip.is-flipped { transform: rotateX(180deg); }
+
+.flip__face {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  backface-visibility: hidden;
+}
+
+/* Unten statt oben verankert. Die Karte ist um 180 Grad gedreht, also
+   liegt die untere Kante im Bild oben - nur so bleibt die Rueckseite beim
+   Wachsen der Karte am oberen Rand stehen, statt von oben hereinzufahren. */
+.flip__back {
+  top: auto;
+  bottom: 0;
+  transform: rotateX(180deg);
+}
+
+/* Platz machen ohne Bewegung: beim Bearbeiten waechst die Karte einfach
+   nach unten, statt die neue Hoehe zu erfahren. */
+.flip.is-instant { transition: none; }
+
+/* Die weggedrehte Seite darf keine Klicks abfangen. */
+.flip:not(.is-flipped) .flip__back { pointer-events: none; }
+.flip.is-flipped .flip__front { pointer-events: none; }
+
+/* ============================================================
+   Trainingsansicht (Rueckseite)
+   ============================================================ */
+.drill__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 2px 2px;
+}
+
+.drill__left {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.drill__states {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.drill__position,
+.drill__progress {
+  font-size: 12px;
+  color: var(--muted);
+}
+.drill__progress { font-variant-numeric: tabular-nums; }
+
+.drill__combo {
+  margin: 6px 0 0;
+  padding: 0 2px;
+  font-size: 20px;
+  line-height: 1.45;
+  font-weight: 700;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+
+.drill__chars {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 8px;
+  padding: 0 2px;
+}
+.drill__chars.is-muted .char-icon { opacity: .4; filter: grayscale(1); }
+
+/* Beim Bearbeiten: dieselben Bedienelemente wie in der Liste. */
+.drill__states-edit {
+  margin-top: 10px;
+  padding: 0 2px;
+}
+.drill__states-edit .entry__states--edit { margin: 0; }
+
+.drill__chars-edit {
+  margin-top: 8px;
+  padding: 0 2px;
+}
+
+.drill__grades {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.grade {
+  flex: 1;
+  padding: 9px 8px;
+  background: var(--fill);
+  color: var(--text-soft);
+  border: 1px solid transparent;
+  border-radius: 10px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color .12s ease, color .12s ease;
+}
+.grade:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.grade--again { background: var(--again-bg); color: var(--again-fg); }
+.grade--again:hover { background: var(--again-bg-hover); }
+.grade--hard  { background: var(--hard-bg); color: var(--hard-fg); }
+.grade--hard:hover { background: var(--hard-bg-hover); }
+.grade--good  { background: var(--good-bg); color: var(--good-fg); }
+.grade--good:hover { background: var(--good-bg-hover); }
+.grade--easy  { background: var(--easy-bg); color: var(--easy-fg); }
+.grade--easy:hover { background: var(--easy-bg-hover); }
+
+/* ============================================================
+   Special States: Menue mit Mehrfachauswahl und Eingabezeile
+   ============================================================ */
+.menu--states { min-width: 240px; }
+
+/* Das Label traegt die Breite, Haken und x sitzen rechts. */
+.menu--states .menu__label { flex: 1; }
+
+/* Marke vor dem Namen: immer gleich breite Box, damit Zeichen und
+   Farbpunkt die Namen daneben auf dieselbe Linie bringen. */
+.menu__dot {
+  flex: none;
+  width: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tag-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+.tag-dot--fixed {
+  background: transparent;
+  border: 1.5px solid var(--text-faint);
+}
+
+.menu__drop {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  margin-left: 2px;
+  border-radius: 50%;
+  color: var(--text-faint);
+  font-size: 15px;
+  line-height: 1;
+  opacity: 0;
+}
+.menu__item:hover .menu__drop { opacity: 1; }
+.menu__drop:hover { background: var(--fill-hover); color: var(--danger); }
+
+.state-add {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+  padding: 8px 4px 2px;
+  border-top: 1px solid var(--hairline);
+}
+
+.state-add__input {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 10px;
+  background: var(--surface);
+  color: var(--tile-fg);
+  border: 1px solid var(--composer-border);
+  border-radius: 8px;
+  font: inherit;
+  font-size: 13px;
+  outline: none;
+}
+.state-add__input:focus { border-color: var(--accent); }
+
+.state-add__go {
+  flex: none;
+  width: 30px;
+  background: var(--fill);
+  color: var(--text-soft);
+  border: 0;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 17px;
+  line-height: 1;
+  cursor: pointer;
+}
+.state-add__go:hover { background: var(--fill-hover); }
+.state-add__go:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ============================================================
+   Notiz zur Combo
+   Bewusst kleiner und leiser als die Combo selbst - sie ist
+   Beiwerk, nicht der Inhalt.
+   ============================================================ */
+.comment {
+  display: block;
+  width: 100%;
+  max-height: 140px;
+  margin-top: 8px;
+  padding: 7px 6px 2px;
+  border: 0;
+  border-top: 1px solid var(--hairline);
+  outline: none;
+  resize: none;
+  overflow-y: auto;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.comment::placeholder { color: var(--text-fainter); }
+
+/* In der Liste unter der Combo. */
+.entry__comment {
+  margin: 4px 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--muted);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.comment-link { color: var(--accent); }
+.comment-link:hover { text-decoration: none; }
+
+/* In der Trainingsansicht bearbeitbar: erst unauffaellig, beim
+   Schreiben deutlich - damit klar ist, dass hier etwas geht. */
+.drill__comment {
+  display: block;
+  width: 100%;
+  max-height: 120px;
+  margin-top: 10px;
+  padding: 6px 8px;
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid transparent;
+  border-radius: 8px;
+  outline: none;
+  resize: none;
+  overflow-y: auto;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.5;
+  transition: background-color .12s ease, border-color .12s ease;
+}
+.drill__comment::placeholder { color: var(--text-fainter); }
+.drill__comment:hover { background: var(--fill-soft); }
+.drill__comment:focus {
+  background: var(--surface);
+  border-color: var(--composer-border);
+  color: var(--tile-fg);
+}
+
+/* ============================================================
+   Bearbeiten - je Charakter, ueber den Stift im Kopf
+   ============================================================ */
+.group__edit {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  margin: -4px -4px -4px 2px;
+  background: transparent;
+  color: var(--text-faint);
+  border: 0;
+  border-radius: 7px;
+  cursor: pointer;
+  transition: background-color .12s ease, color .12s ease;
+}
+.group__edit svg { width: 15px; height: 15px; }
+.group__edit:hover { background: var(--fill); color: var(--tile-fg); }
+.group__edit:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.group__edit.is-active { background: var(--accent); color: #fff; }
+
+.group.is-editing { border-color: var(--composer-border); }
+.group.is-editing .group__list { gap: 18px; }
+
+/* Loeschen ist beim Bearbeiten dauerhaft sichtbar. */
+.entry.is-editing .entry__remove { opacity: 1; }
+
+/* Combo-Feld: dieselbe Overlay-Technik wie oben, nur kompakt.
+   .composer__input ist fuer die grosse Box gebaut - Mindesthoehe und
+   Innenabstand muessen hier zurueckgenommen werden, und zwar fuer beide
+   Ebenen gleich, sonst laufen Text und Faerbung auseinander. */
+.editor--entry {
+  flex: 1;
+  min-width: 0;
+  background: var(--fill-soft);
+  border: 1px solid transparent;
+  border-radius: 8px;
+  transition: background-color .12s ease, border-color .12s ease;
+}
+.editor--entry:focus-within {
+  background: var(--surface);
+  border-color: var(--composer-border);
+}
+
+.editor--entry .editor__highlight,
+.editor--entry .composer__input {
+  padding: 3px 8px;
+}
+
+.entry__input {
+  min-height: 0;
+  max-height: 120px;
+}
+
+/* Position als schlichte Auswahl. */
+.entry__position {
+  padding: 3px 6px;
+  background: var(--fill-soft);
+  color: var(--muted);
+  border: 1px solid transparent;
+  border-radius: 7px;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.entry__position:hover { background: var(--fill-hover); }
+.entry__position:focus { outline: none; background: var(--surface); border-color: var(--composer-border); }
+
+/* Marken beim Bearbeiten: alle waehlbar, die gesetzten farbig. */
+.entry__states--edit {
+  justify-content: flex-start;
+  margin-top: 8px;
+}
+
+.state-tag--pick {
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: opacity .1s ease;
+}
+.state-tag--pick.is-off { border-color: var(--hairline); }
+.state-tag--pick:hover { opacity: .75; }
+
+/* Neue Marke direkt am Eintrag anlegen. */
+.entry__state-new { display: inline-flex; align-items: center; }
+
+.state-tag--add {
+  background: transparent;
+  color: var(--muted);
+  border-color: var(--hairline);
+  border-style: dashed;
+  padding: 2px 9px;
+  line-height: 1.35;
+}
+.state-tag--add:hover { color: var(--accent); border-color: var(--accent); }
+
+.entry__state-input {
+  width: 104px;
+  padding: 2px 8px;
+  background: var(--surface);
+  color: var(--tile-fg);
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  outline: none;
+}
+
+/* Notiz beim Bearbeiten. */
+.entry__comment-input {
+  display: block;
+  width: 100%;
+  max-height: 110px;
+  margin-top: 8px;
+  padding: 4px 8px;
+  background: var(--fill-soft);
+  color: var(--muted);
+  border: 1px solid transparent;
+  border-radius: 8px;
+  outline: none;
+  resize: none;
+  overflow-y: auto;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.entry__comment-input::placeholder { color: var(--text-fainter); }
+.entry__comment-input:focus { background: var(--surface); border-color: var(--composer-border); }
+
+/* ============================================================
+   Gegnerauswahl am Eintrag (nur beim Bearbeiten)
+   ============================================================ */
+.picker--entry { position: relative; }
+
+.entry__chars-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 150px;
+  padding: 3px 6px;
+  background: var(--fill-soft);
+  color: var(--muted);
+  border: 1px solid transparent;
+  border-radius: 7px;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background-color .12s ease, border-color .12s ease;
+}
+.entry__chars-btn:hover { background: var(--fill-hover); }
+.entry__chars-btn[aria-expanded="true"] { background: var(--surface); border-color: var(--composer-border); }
+.entry__chars-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.entry__chars-btn svg { width: 12px; height: 12px; flex: none; }
+
+.entry__chars-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Klappt nach links auf: der Eintrag sitzt am rechten Rand der Gruppe. */
+.char-menu--entry {
+  --char-tile-size: 34px;
+  left: auto;
+  right: 0;
+  width: 322px;
+  max-width: calc(100vw - 48px);
+}
+
+/* ============================================================
+   Persistent input: bleiben die Felder nach dem Anlegen stehen?
+   ============================================================ */
+.persist {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 0 0 2px;
+  padding: 2px 6px 2px 2px;
+  border-radius: 7px;
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+  user-select: none;
+}
+.persist:hover { color: var(--tile-fg); }
+
+.persist__box {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.persist__box:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ============================================================
+   Import / Export oben links
+   ============================================================ */
+/* Option links, Werkzeuge rechts - eine Zeile zwischen Karte und Liste. */
+.composer__utils {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 10px 0 0;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.toolbar__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 11px 5px 9px;
+  background: var(--surface);
+  color: var(--muted);
+  border: 1px solid var(--composer-border);
+  border-radius: 999px;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background-color .12s ease, color .12s ease, border-color .12s ease;
+}
+.toolbar__btn svg { width: 15px; height: 15px; flex: none; }
+.toolbar__btn:hover { background: var(--fill-soft); color: var(--tile-fg); border-color: var(--border-strong); }
+.toolbar__btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ============================================================
+   Rueckmeldung zu Teilen, Import und Export
+   ============================================================ */
+.notice {
+  margin: 10px 0 0;
+  padding: 8px 12px;
+  background: var(--accent-soft);
+  color: var(--good-fg);
+  border-radius: 10px;
+  font-size: 13px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.notice.is-error {
+  background: var(--danger-soft);
+  color: var(--again-fg);
+}
+
+/* Share-Code in der Rueckmeldung: zum Markieren und Kopieren. */
+.notice__code {
+  display: block;
+  margin-top: 8px;
+  padding: 8px 10px;
+  background: var(--code-bg);
+  border-radius: 8px;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+
+/* ============================================================
+   Rueckfrage vor dem Importieren
+   Natives <dialog>: liegt in der Seite, bringt Fokus-Falle und
+   Escape mit, ohne dass wir beides nachbauen muessen.
+   ============================================================ */
+.dialog {
+  width: min(420px, calc(100vw - 40px));
+  padding: 20px 22px 18px;
+  background: var(--surface);
+  color: var(--tile-fg);
+  border: 1px solid var(--composer-border);
+  border-radius: 16px;
+  box-shadow: 0 16px 48px var(--shadow-strong);
+}
+.dialog::backdrop { background: rgba(17, 24, 39, .35); }
+
+.dialog__title {
+  margin: 0 0 8px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.dialog__text {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--text-soft);
+}
+
+.dialog__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.dialog__btn {
+  padding: 8px 14px;
+  background: var(--fill);
+  color: var(--text-soft);
+  border: 1px solid transparent;
+  border-radius: 9px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color .12s ease;
+}
+.dialog__btn:hover { background: var(--fill-hover); }
+.dialog__btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.dialog__btn.is-primary { background: var(--accent); color: #fff; }
+.dialog__btn.is-primary:hover { background: var(--accent-hover); }
+
+.dialog__btn.is-quiet { background: transparent; color: var(--muted); }
+.dialog__btn.is-quiet:hover { background: var(--fill); }
+
+/* ============================================================
+   Einstellungen fuers Training
+   ============================================================ */
+.dialog--wide { width: min(520px, calc(100vw - 40px)); }
+
+.setting { margin-top: 20px; }
+.setting:first-of-type { margin-top: 14px; }
+
+.setting__title {
+  margin: 0 0 4px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: .02em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.setting__hint {
+  margin: 0 0 10px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.setting__row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+  font-size: 14px;
+  color: var(--text-soft);
+}
+.setting__row.is-off { opacity: .45; }
+
+.setting__inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.setting__row input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.setting__num {
+  width: 66px;
+  padding: 5px 8px;
+  background: var(--surface);
+  color: var(--tile-fg);
+  border: 1px solid var(--composer-border);
+  border-radius: 8px;
+  font: inherit;
+  font-size: 14px;
+  outline: none;
+}
+.setting__num:focus { border-color: var(--accent); }
+
+/* Eigene Aufschrift der Bewertungsknoepfe - vier gleich breite Felder. */
+/* Die Felder tragen die Farbe des Knopfes, den sie beschriften - sonst
+   muesste man raten, welches Feld zu welchem gehoert. */
+.grade-label {
+  flex: 1;
+  min-width: 0;
+  padding: 5px 8px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+  outline: none;
+}
+.grade-label::placeholder { color: inherit; opacity: .55; }
+.grade-label:focus { border-color: currentColor; }
+.grade-label:disabled { cursor: not-allowed; }
+
+.grade-label--again { background: var(--again-bg); color: var(--again-fg); }
+.grade-label--hard  { background: var(--hard-bg);  color: var(--hard-fg); }
+.grade-label--good  { background: var(--good-bg);  color: var(--good-fg); }
+.grade-label--easy  { background: var(--easy-bg);  color: var(--easy-fg); }
+
+#gradeRow { flex-wrap: nowrap; }
+
+/* --- Reihenfolge zum Ziehen --- */
+.order {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.order__item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 8px 7px 10px;
+  background: var(--fill-soft);
+  border: 1px solid transparent;
+  border-radius: 9px;
+  font-size: 14px;
+  cursor: grab;
+  user-select: none;
+}
+.order__item:hover { background: var(--fill-hover); }
+.order__item.is-dragging {
+  opacity: .5;
+  cursor: grabbing;
+  border-color: var(--accent);
+}
+
+.order__dot {
+  flex: none;
+  width: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.order__label { flex: 1; }
+
+.order__grip {
+  flex: none;
+  width: 15px;
+  height: 15px;
+  color: var(--text-fainter);
+}
+
+/* --- Feste Kriterien in der Reihenfolge --- */
+.order__item--fixed { background: var(--fill); }
+.order__item--fixed:hover { background: var(--fill-hover); }
+/* --- Erlaubte Gegner fuer die Zufallsauswahl --- */
+.char-grid--allowed {
+  --char-tile-size: 34px;
+  margin-top: 10px;
+}
+.char-grid--allowed.is-off {
+  opacity: .4;
+  pointer-events: none;
+}
+
+.setting__count {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* --- Gegner in der Trainingsansicht --- */
+.drill__opponent {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px 2px 3px;
+  background: var(--accent-soft);
+  color: var(--good-fg);
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.drill__opponent-icon {
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  font-size: 7px;
+}
+
+/* Kein erlaubter Gegner passt: die Combo laeuft mit, aber der Dummy stimmt nicht. */
+.drill__opponent.is-warning {
+  background: var(--warn-soft);
+  color: var(--hard-fg);
+}
+.drill__warn { width: 13px; height: 13px; flex: none; }
+
+
+/* --- Stand aus dem Training --- */
+/* Eine Zeile fuer Drill-Marke, Note und Termin. */
+.entry__sr {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.entry__grade {
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-weight: 600;
+  background: var(--fill);
+  color: var(--text-soft);
+}
+.entry__grade--again { background: var(--again-bg); color: var(--again-fg); }
+.entry__grade--hard  { background: var(--hard-bg); color: var(--hard-fg); }
+.entry__grade--good  { background: var(--good-bg); color: var(--good-fg); }
+.entry__grade--easy  { background: var(--easy-bg); color: var(--easy-fg); }
+
+/* Drill: laeuft am Wiederholungsplan vorbei, steht an dessen Stelle. */
+.entry__drill {
+  padding: 2px 9px;
+  background: var(--drill-soft);
+  color: var(--drill-fg);
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* Traegt die Marke ein Zeichen, steht es anstelle des Farbpunkts. */
+.menu__dot.is-emoji { font-size: 13px; line-height: 1; }
+.order__dot.is-emoji { font-size: 14px; line-height: 1; }
+
+/* ============================================================
+   Trainingsansicht: Lesen und Bearbeiten
+   ============================================================ */
+/* Notiz beim Lesen: Links sind anklickbar. */
+.drill__note {
+  margin: 10px 0 0;
+  padding: 0 2px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--muted);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* Combo im Bearbeiten: dieselbe Groesse wie die Anzeige, damit beim
+   Umschalten nichts springt. Beide Ebenen muessen gleich bleiben. */
+.editor--drill { margin: 6px 0 0; }
+.editor--drill .editor__highlight,
+.editor--drill .composer__input {
+  font-size: 20px;
+  line-height: 1.45;
+}
+.editor--drill .composer__input { max-height: 160px; }
+
+/* Der Stift schaltet um; aktiv wird er hervorgehoben. */
+.head-icon.is-active { background: var(--accent); color: #fff; }
+.head-icon.is-active:hover { background: var(--accent-hover); color: #fff; }
+
+/* Angehaltene Uhr: der Stop-Knopf tritt zurueck. */
+.go-button.is-paused { background: var(--text-faint); box-shadow: none; }
+.go-button.is-paused:hover { background: var(--muted); }
+
+/* Bewertungsknoepfe tragen den geplanten Aufschub unter der Note. */
+.grade {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  line-height: 1.25;
+}
+.grade__days {
+  font-size: 11px;
+  font-weight: 500;
+  opacity: .75;
+}
+.grade__days:empty { display: none; }
+
+/* ============================================================
+   Erledigte Combos der laufenden Sitzung
+   Zurueckgenommen, bis man daraufzeigt - dann wird die Zeile zur
+   Karte und laesst sich nachbessern.
+   ============================================================ */
+.done {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.done__item {
+  padding: 7px 12px;
+  border: 1px solid transparent;
+  border-radius: 14px;
+  opacity: .6;
+  transition: opacity .12s ease, border-color .12s ease, background-color .12s ease;
+}
+.done__item:hover,
+.done__item:focus-within {
+  opacity: 1;
+  background: var(--composer-bg);
+  border-color: var(--composer-border);
+  box-shadow: 0 1px 2px var(--shadow-soft);
+}
+
+.done__row {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+}
+
+.done__mark {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  color: var(--go);
+  align-self: center;
+}
+.done__mark.is-fail { color: var(--stop); }
+.done__mark svg { width: 100%; height: 100%; }
+
+.done__combo {
+  margin: 0;
+  font-size: var(--input-font-size);
+  line-height: 1.5;
+  font-weight: 700;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+
+/* Die Noten erscheinen erst beim Draufzeigen. Nicht per display:none -
+   damit waeren sie nicht fokussierbar, und die Zeile per Tastatur gar
+   nicht erreichbar. Zusammengeklappt bleiben sie im Tabulator-Weg. */
+.done__grades {
+  display: flex;
+  gap: 6px;
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  transition: max-height .12s ease, opacity .12s ease, margin .12s ease;
+}
+.done__item:hover .done__grades,
+.done__item:focus-within .done__grades {
+  max-height: 60px;
+  opacity: 1;
+  margin: 8px 0 2px 23px;
+}
+
+.done__grade {
+  flex: 1;
+  padding: 5px 6px;
+  font-size: 12.5px;
+  border-radius: 8px;
+  opacity: .3;
+}
+.done__grade:hover { opacity: .7; }
+.done__grade.is-chosen { opacity: 1; }
+
+/* ============================================================
+   Abschluss der Sitzung
+   ============================================================ */
+/* Geschafft: das ganze Feld wird gruen. Die Hoehe setzt JS auf die der
+   Vorderseite, der Inhalt sitzt darin mittig. */
+.flip__back.is-done {
+  background: var(--go);
+  border-color: var(--go);
+  display: flex;
+  align-items: center;
+}
+.flip__back.is-done .drill-done { flex: 1; }
+
+/* Soll nicht hoeher werden als das leere Eingabefeld daneben - sonst
+   springt die Karte beim Umklappen in der Groesse. */
+.drill-done {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 4px 2px 2px;
+  text-align: center;
+  color: #fff;
+}
+
+.drill-done__title {
+  margin: 0;
+  font-size: 21px;
+  font-weight: 700;
+}
+
+.drill-done__rate {
+  margin: 0;
+  font-size: 14px;
+  color: rgba(255,255,255,.85);
+}
+
+/* Weisser Knopf auf gruenem Grund. */
+/* Sitzt immer auf dem gruenen Feld, also feste Werte statt Thema-Token:
+   mit --surface wurde der Knopf im dunklen Thema schwarz auf Gruen. */
+.drill-done .dialog__btn.is-primary {
+  margin-top: 2px;
+  background: #ffffff;
+  color: var(--go-hover);
+}
+.drill-done .dialog__btn.is-primary:hover { background: #eaf7ee; }
+.drill-done .dialog__btn.is-primary:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+
+/* ============================================================
+   Zahnrad-Menue: gezielte Runde oder Einstellungen
+   ============================================================ */
+.picker--gear { position: relative; }
+
+/* Klappt nach links auf - das Zahnrad sitzt am rechten Ende der Zeile. */
+.menu--gear {
+  left: auto;
+  right: 0;
+  min-width: 210px;
+}
+
+.menu__sep {
+  height: 1px;
+  margin: 6px 4px;
+  background: var(--hairline);
+}
+
+/* Am Zahnrad sichtbar, dass eine Auswahl aktiv ist. */
+.head-icon.is-filtered {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+.head-icon.is-filtered:hover { background: var(--accent-soft-hover); color: var(--accent); }
+
+/* Dauer je Combo, rechts in der Zeile. Nur Beiwerk - wird nicht gespeichert. */
+.done__time {
+  flex: none;
+  align-self: center;
+  font-size: 11.5px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* ============================================================
+   Theme switch
+   ============================================================ */
+.theme-switch {
+  position: fixed;
+  top: 18px;
+  right: 20px;
+  z-index: 50;
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  background: var(--surface);
+  border: 1px solid var(--composer-border);
+  border-radius: 999px;
+}
+
+.theme-switch__btn {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  color: var(--text-faint);
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: background-color .12s ease, color .12s ease;
+}
+.theme-switch__btn svg { width: 15px; height: 15px; }
+.theme-switch__btn:hover { color: var(--tile-fg); background: var(--fill); }
+.theme-switch__btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+.theme-switch__btn.is-active {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+/* Textauswahl in der Akzentfarbe des Themas. */
+::selection {
+  background: var(--accent);
+  color: #fff;
+}
+
+/* ============================================================
+   Game theme: the red carries more than just the focus rings.
+   Only this theme is affected, so light and dark stay untouched.
+   ============================================================ */
+/* Kopf der Charakter-Gruppe: rote Trennlinie statt grauer. */
+[data-theme="game"] .group__head { border-bottom-color: var(--accent); }
+
+/* Der eigene Charakter ist die Identitaet der Seite - roter Rahmen. */
+[data-theme="game"] .who-button { border-color: var(--accent); }
+[data-theme="game"] .who-button:hover { background: var(--accent-soft); }
+
+/* Ausklappknopf und Zaehler in der Akzentfarbe. */
+[data-theme="game"] .group__count { color: var(--accent); }
+
+/* Gewaehlte Zustaende: rot statt blau. */
+[data-theme="game"] .menu__item.is-active .menu__label { color: var(--accent); }
+[data-theme="game"] .menu__check { color: var(--accent); }
+
+/* Positions-Symbol nimmt die Akzentfarbe auf. */
+[data-theme="game"] .entry__stage { color: var(--accent); }
+
+/* Die Karte selbst bekommt eine Kante in Rot, wie die Panels im Spiel. */
+[data-theme="game"] .composer__box { border-color: #4a2320; }
+[data-theme="game"] .composer__box:focus-within { border-color: var(--accent); }
+[data-theme="game"] .group { border-color: #3a2422; }
+
+/* Symbole und Umrandung der Einstellungs-Knoepfe im Spiel-Thema. */
+[data-theme="game"] .picker-button__icon,
+[data-theme="game"] .picker-button__stage { color: var(--accent); }
+
+[data-theme="game"] .picker-button,
+[data-theme="game"] .toolbar__btn { border-color: #6b2b26; }
+
+[data-theme="game"] .picker-button:hover,
+[data-theme="game"] .toolbar__btn:hover { border-color: var(--accent); }
+
+[data-theme="game"] .picker-button[aria-expanded="true"] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+/* Hilfe-Knopf: Form wie der Sende-Knopf, Farbgebung wie Export / Import. */
+.head-help {
+  margin-left: auto;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  background: var(--surface);
+  color: var(--muted);
+  border: 1px solid var(--composer-border);
+  border-radius: 50%;
+  cursor: pointer;
+  transition: background-color .12s ease, color .12s ease, border-color .12s ease;
+}
+.head-help svg { width: 18px; height: 18px; }
+.head-help:hover {
+  background: var(--fill-soft);
+  color: var(--tile-fg);
+  border-color: var(--border-strong);
+}
+.head-help:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+[data-theme="game"] .head-help { border-color: #6b2b26; }
+[data-theme="game"] .head-help:hover { border-color: var(--accent); }
+
+/* ============================================================
+   Reiter im Einstellungsdialog
+   ============================================================ */
+.tabs {
+  display: flex;
+  gap: 4px;
+  margin: 12px 0 4px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.tab {
+  padding: 6px 12px;
+  background: transparent;
+  color: var(--muted);
+  border: 0;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color .12s ease, color .12s ease;
+}
+.tab:hover { background: var(--fill); color: var(--tile-fg); }
+.tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.tab.is-active { background: var(--accent-soft); color: var(--accent); }
+
+/* ============================================================
+   Notationsfarben und eigene Regeln
+   ============================================================ */
+.colors {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 4px 14px;
+}
+
+.colors__row {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 3px 4px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.colors__row:hover { background: var(--fill-soft); }
+
+.colors__swatch {
+  flex: none;
+  margin-top: 1px;
+  width: 24px;
+  height: 22px;
+  padding: 0;
+  background: none;
+  border: 1px solid var(--composer-border);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+/* Name und die Arten darunter teilen sich eine Spalte, damit die
+   Aufzaehlung umbrechen kann, ohne die Farbprobe zu verschieben. */
+.colors__text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.colors__label { font-size: 13px; color: var(--text-soft); }
+
+.colors__kinds {
+  font-size: 11.5px;
+  line-height: 1.35;
+  color: var(--muted);
+}
+
+.colors__sample {
+  flex: none;
+  margin-top: 1px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+/* --- eigene Regeln --- */
+.rules {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.rules__empty {
+  margin: 0;
+  padding: 4px 2px;
+  font-size: 12.5px;
+  color: var(--text-faint);
+}
+
+.rules__row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 5px 6px;
+  background: var(--fill-soft);
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.rules__dot {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.rules__name { flex: none; font-weight: 600; }
+
+.rules__pattern {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.rules__drop {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  color: var(--text-faint);
+  border: 0;
+  border-radius: 50%;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+.rules__drop:hover { background: var(--fill-hover); color: var(--danger); }
+
+.rule-add {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.rule-add__name { flex: 0 1 110px; }
+.rule-add__pattern { flex: 1 1 160px; }
+
+.rule-add__name,
+.rule-add__pattern {
+  min-width: 0;
+  padding: 6px 10px;
+  background: var(--surface);
+  color: var(--tile-fg);
+  border: 1px solid var(--composer-border);
+  border-radius: 8px;
+  font: inherit;
+  font-size: 13px;
+  outline: none;
+}
+.rule-add__pattern { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+.rule-add__name:focus,
+.rule-add__pattern:focus { border-color: var(--accent); }
+
+.rule-add__color {
+  flex: none;
+  width: 34px;
+  padding: 0;
+  background: none;
+  border: 1px solid var(--composer-border);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.rule-error {
+  margin: 8px 0 0;
+  font-size: 12.5px;
+  color: var(--danger);
+}
+
+/* Charaktere ohne gespeicherte Combos treten in der Auswahl zurueck. */
+/* Nur das Bild wird durchsichtig, nicht der Knopf: sonst verblasst der
+   Auswahlrahmen mit und man sieht nicht mehr, wer gewaehlt ist. */
+.char.is-empty .char-icon { opacity: .35; }
+.char.is-empty:hover .char-icon { opacity: .8; }

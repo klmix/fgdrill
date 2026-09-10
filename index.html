@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FGDrills</title>
+
+  <link rel="icon" href="assets/favicon.ico" sizes="any">
+  <link rel="icon" type="image/png" href="assets/icon-512.png" sizes="512x512">
+  <link rel="apple-touch-icon" href="assets/icon-180.png">
+
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="combo.css">
+
+  <!-- Apply the theme before the first paint, otherwise a dark theme
+       flashes white while the stylesheet loads. -->
+  <script>
+    (function () {
+      var theme = "game";
+      try {
+        var stored = localStorage.getItem("ggst-combo-trainer-theme");
+        if (stored === "light" || stored === "dark" || stored === "game") theme = stored;
+      } catch (e) { /* no storage: fall back to the default */ }
+      document.documentElement.dataset.theme = theme;
+    })();
+  </script>
+</head>
+<body class="page-scrolls">
+
+  <!-- Game, light or dark -->
+  <div class="theme-switch" role="group" aria-label="Theme">
+    <button type="button" class="theme-switch__btn" data-theme-set="game" title="Game">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+           stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M6.5 8h11a4 4 0 0 1 3.9 3.1l.9 4A3.4 3.4 0 0 1 19 19c-1 0-1.8-.5-2.4-1.2L15 16H9l-1.6 1.8C6.8 18.5 6 19 5 19a3.4 3.4 0 0 1-3.3-3.9l.9-4A4 4 0 0 1 6.5 8Z"/>
+        <path d="M7 12h2M8 11v2M15.5 11.5h.01M17.5 13.5h.01"/>
+      </svg>
+    </button>
+
+    <button type="button" class="theme-switch__btn" data-theme-set="light" title="Light">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+           stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="4"/>
+        <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>
+      </svg>
+    </button>
+
+    <button type="button" class="theme-switch__btn" data-theme-set="dark" title="Dark">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+           stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5Z"/>
+      </svg>
+    </button>
+  </div>
+
+  <main class="composer">
+
+    <!-- Scrollt mit, wird dabei kleiner und ist verschwunden, sobald die
+         Kopfzeile oben andockt. Die Masse stehen im Bild, damit beim Laden
+         nichts nachrutscht. -->
+    <h1 class="brand">
+      <img class="brand__img" src="assets/logo.png" width="640" height="192"
+           alt="FGDrills" decoding="async">
+    </h1>
+
+    <!-- Kopf, Karte und Werkzeugzeile bleiben beim Scrollen oben stehen;
+         die Combo-Listen laufen darunter durch. -->
+    <div class="composer__stick">
+
+      <!-- Fuer welchen Charakter werden gerade Combos gesammelt, und Training starten -->
+      <div class="composer__head">
+
+        <div class="picker picker--who">
+          <button id="whoButton" type="button" class="who-button"
+                  aria-haspopup="dialog" aria-expanded="false">
+            <span id="whoPortrait" class="who-button__portrait"></span>
+            <span id="whoName" class="who-button__name"></span>
+            <svg class="picker-button__caret" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="m6 9 6 6 6-6"/>
+            </svg>
+          </button>
+
+          <div id="whoPanel" class="char-menu" role="dialog" aria-label="Choose character" hidden>
+            <div id="whoGrid" class="char-grid char-grid--single"></div>
+          </div>
+        </div>
+
+        <button id="dojoButton" type="button" class="go-button">
+          <svg class="go-button__play" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M8 5.5v13a1 1 0 0 0 1.53.85l10-6.5a1 1 0 0 0 0-1.7l-10-6.5A1 1 0 0 0 8 5.5Z"/>
+          </svg>
+          <svg class="go-button__stop" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <rect x="6" y="6" width="12" height="12" rx="2"/>
+          </svg>
+          <span id="dojoLabel">Start training</span>
+        </button>
+
+        <button id="drillEditButton" type="button" class="head-icon" hidden
+                title="Edit combo and note - pauses the clock"
+                aria-label="Edit" aria-pressed="false">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+               stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 20h9"/>
+            <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>
+          </svg>
+        </button>
+
+        <!-- Zahnrad: erst eine Auswahl, was trainiert werden soll -->
+        <div class="picker picker--gear">
+          <button id="settingsButton" type="button" class="head-icon" title="Training settings"
+                  aria-label="Settings">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="3.2"/>
+              <path d="M19.4 15a1.6 1.6 0 0 0 .32 1.77l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.6 1.6 0 0 0-1.77-.32 1.6 1.6 0 0 0-.97 1.47V21a2 2 0 1 1-4 0v-.1a1.6 1.6 0 0 0-1.05-1.46 1.6 1.6 0 0 0-1.77.32l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.6 1.6 0 0 0 .32-1.77 1.6 1.6 0 0 0-1.47-.97H3a2 2 0 1 1 0-4h.1a1.6 1.6 0 0 0 1.46-1.05 1.6 1.6 0 0 0-.32-1.77l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.6 1.6 0 0 0 1.77.32H9a1.6 1.6 0 0 0 .97-1.47V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 .97 1.47 1.6 1.6 0 0 0 1.77-.32l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.6 1.6 0 0 0-.32 1.77V9a1.6 1.6 0 0 0 1.47.97H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.47.97Z"/>
+            </svg>
+          </button>
+
+          <div id="settingsMenu" class="menu menu--gear" role="menu" hidden>
+            <div id="tagFilterList"></div>
+            <div class="menu__sep"></div>
+            <button type="button" class="menu__item" data-open-prefs>
+              <span class="menu__label">Preferences</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Hilfe; noch ohne Inhalt -->
+        <button id="helpButton" type="button" class="head-help" title="Help" aria-label="Help">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M9.2 9a2.9 2.9 0 0 1 5.6 1c0 2-2.8 2.6-2.8 4"/>
+            <path d="M12 17.5h.01"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Eingabefeld; klappt beim Training auf die Rueckseite -->
+      <div class="composer__flip">
+        <div id="flip" class="flip">
+        <div class="composer__box flip__face flip__front">
+          <!-- Die eingefaerbte Fassung liegt hinter dem (transparenten) Textfeld. -->
+          <div class="editor">
+            <div id="comboHighlight" class="editor__highlight" aria-hidden="true"></div>
+            <textarea id="comboInput" class="composer__input" rows="1" spellcheck="false"
+                      placeholder="Enter a combo, e.g. 2K > 2D > 236K > 214214H"></textarea>
+          </div>
+
+        <!-- Notiz zur Combo: erscheint mit Shift+Enter, bleibt danach stehen -->
+        <textarea id="commentInput" class="comment" rows="1" spellcheck="false"
+                  placeholder="Note, link, tip ..."></textarea>
+
+        <div class="composer__bar">
+
+            <!-- Position auf dem Bildschirm -->
+            <div class="picker">
+              <button id="positionButton" type="button" class="picker-button"
+                      aria-haspopup="menu" aria-expanded="false">
+                <!-- Zeigt die Buehne der gerade gewaehlten Position. -->
+                <span id="positionIcon" class="picker-button__stage"></span>
+                <span id="positionLabel" class="picker-button__label">Everywhere</span>
+                <svg class="picker-button__caret" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="m6 9 6 6 6-6"/>
+                </svg>
+              </button>
+
+              <div id="positionMenu" class="menu" role="menu" hidden></div>
+            </div>
+
+            <!-- Charakterauswahl: ausklappbares Menue wie der Positions-Wahlschalter -->
+            <div class="picker picker--chars">
+              <button id="pickerButton" type="button" class="picker-button"
+                      aria-haspopup="dialog" aria-expanded="false">
+              <svg class="picker-button__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect x="3" y="3" width="7" height="7" rx="1.5"/>
+                <rect x="14" y="3" width="7" height="7" rx="1.5"/>
+                <rect x="3" y="14" width="7" height="7" rx="1.5"/>
+                <rect x="14" y="14" width="7" height="7" rx="1.5"/>
+              </svg>
+              <span id="pickerLabel" class="picker-button__label">All characters</span>
+              <svg class="picker-button__caret" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="m6 9 6 6 6-6"/>
+              </svg>
+            </button>
+
+              <div id="pickerPanel" class="char-menu" role="dialog" aria-label="Character selection" hidden>
+                <div id="pickerTools" class="char-menu__tools">
+                  <button type="button" class="chip" data-select="all">All</button>
+                  <button type="button" class="chip" data-select="none">None</button>
+                </div>
+                <div id="charGrid" class="char-grid"></div>
+              </div>
+            </div>
+
+            <!-- Freie Marken fuer Zusatzinfos, z.B. jumping / crouching -->
+          <div class="picker">
+            <button id="stateButton" type="button" class="picker-button"
+                    aria-haspopup="dialog" aria-expanded="false">
+              <svg class="picker-button__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M3 11V4.5A1.5 1.5 0 0 1 4.5 3H11l9.5 9.5a1.5 1.5 0 0 1 0 2.1l-6.4 6.4a1.5 1.5 0 0 1-2.1 0L3 11Z"/>
+                <circle cx="7.5" cy="7.5" r="1.2"/>
+              </svg>
+              <span id="stateLabel" class="picker-button__label">Special States</span>
+              <svg class="picker-button__caret" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="m6 9 6 6 6-6"/>
+              </svg>
+            </button>
+
+            <div id="statePanel" class="menu menu--states" role="dialog"
+                 aria-label="Special States" hidden>
+              <div id="stateList"></div>
+              <form id="stateAdd" class="state-add">
+                <input id="stateInput" class="state-add__input" type="text"
+                       placeholder="New state ..." autocomplete="off" maxlength="24">
+                <button type="submit" class="state-add__go" title="Add"
+                        aria-label="Add">+</button>
+              </form>
+            </div>
+          </div>
+
+          <button id="saveButton" type="button" class="send-button" title="Save">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                   stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M12 19V5"/><path d="m5 12 7-7 7 7"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Rueckseite: die Combo, die gerade geuebt wird -->
+        <div class="composer__box flip__face flip__back">
+          <div id="drillMain" class="drill">
+            <div class="drill__head">
+              <span class="drill__left">
+                <span id="drillOpponent" class="drill__opponent" hidden></span>
+                <span id="drillPosition" class="drill__position"></span>
+                <span id="drillStates" class="drill__states"></span>
+              </span>
+              <span id="drillProgress" class="drill__progress"></span>
+            </div>
+
+            <p id="drillCombo" class="drill__combo"></p>
+            <div id="drillComboEdit" hidden></div>
+
+            <!-- Beim Bearbeiten treten Marken und Gegner an die Stelle der
+                 blossen Anzeige darueber. -->
+            <div id="drillStateEdit" class="drill__states-edit" hidden></div>
+            <div id="drillChars" class="drill__chars" hidden></div>
+            <div id="drillCharEdit" class="drill__chars-edit" hidden></div>
+
+            <!-- Normal nur lesen, damit Links anklickbar sind. Der Stift oben
+                 schaltet auf Bearbeiten um und haelt dabei die Uhr an. -->
+            <p id="drillNote" class="drill__note" hidden></p>
+            <textarea id="drillComment" class="drill__comment" rows="1" spellcheck="false"
+                      placeholder="Note, link, tip ..." hidden></textarea>
+
+            <div id="drillGrades" class="drill__grades">
+              <button type="button" class="grade grade--again" data-grade="again"><span class="grade__label">Again</span><span class="grade__days" data-days="again"></span></button>
+              <button type="button" class="grade grade--hard" data-grade="hard"><span class="grade__label">Hard</span><span class="grade__days" data-days="hard"></span></button>
+              <button type="button" class="grade grade--good" data-grade="good"><span class="grade__label">Good</span><span class="grade__days" data-days="good"></span></button>
+              <button type="button" class="grade grade--easy" data-grade="easy"><span class="grade__label">Easy</span><span class="grade__days" data-days="easy"></span></button>
+            </div>
+          </div>
+
+          <!-- Alles geschafft. Die Liste darunter bleibt offen, damit man
+               eine verklickte Note noch korrigieren kann. -->
+          <div id="drillDone" class="drill-done" hidden>
+            <p class="drill-done__title">You are done for today!</p>
+            <p id="drillDoneRate" class="drill-done__rate"></p>
+            <button type="button" id="drillDoneClose" class="dialog__btn is-primary">
+              Back to input
+            </button>
+          </div>
+        </div>
+        </div>
+      </div>
+
+      <!-- Eine Zeile: links die Eingabe-Option, rechts Sichern und Laden. -->
+      <div id="composerUtils" class="composer__utils">
+        <!-- Bleiben die Felder nach dem Anlegen stehen? Steht ausserhalb der
+             Karte, damit es die Umklapp-Hoehe nicht beeinflusst. -->
+        <label id="persistLabel" class="persist">
+          <input id="persistInput" type="checkbox" class="persist__box">
+          <span>Persistent input</span>
+        </label>
+
+        <div class="toolbar">
+          <button id="exportButton" type="button" class="toolbar__btn"
+                  title="Export all combos to a file" hidden>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 20V9"/><path d="m7.5 13.5 4.5-4.5 4.5 4.5"/>
+              <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/>
+            </svg>
+            <span>Export</span>
+          </button>
+
+          <button id="importButton" type="button" class="toolbar__btn" title="Import combos from a file">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 3v11"/><path d="m7.5 9.5 4.5 4.5 4.5-4.5"/>
+              <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/>
+            </svg>
+            <span>Import</span>
+          </button>
+
+          <input id="importFile" type="file" accept="application/json,.json" hidden>
+        </div>
+      </div>
+    </div>
+
+    <!-- Rueckmeldung zu Teilen, Import und Export -->
+    <p id="notice" class="notice" hidden></p>
+
+    <!-- Was in dieser Sitzung schon dran war, neueste oben. -->
+    <ol id="doneList" class="done" hidden></ol>
+
+    <!-- Liste der bereits angelegten Combos.
+         Solange nichts gespeichert ist, steht hier nichts - auch keine Ueberschrift. -->
+    <div id="entryList" class="entries" aria-label="Saved combos" hidden></div>
+
+  </main>
+
+  <!-- Rueckfrage vor dem Importieren. Liegt in der Seite, kein Browser-Popup. -->
+  <dialog id="askDialog" class="dialog">
+    <h2 id="dialogTitle" class="dialog__title"></h2>
+    <p id="dialogText" class="dialog__text"></p>
+    <div id="dialogActions" class="dialog__actions"></div>
+  </dialog>
+
+  <!-- Einstellungen fuer das Training -->
+  <dialog id="settingsDialog" class="dialog dialog--wide">
+    <h2 class="dialog__title">Preferences</h2>
+
+    <div class="tabs" role="tablist">
+      <button type="button" class="tab is-active" data-tab="training" role="tab"
+              aria-selected="true">Training</button>
+      <button type="button" class="tab" data-tab="colors" role="tab"
+              aria-selected="false">Colors</button>
+    </div>
+
+    <div class="tabpanel" data-panel="training">
+      <section class="setting">
+        <h3 class="setting__title">Order Of Training</h3>
+        <p class="setting__hint">
+          Every level groups the queue, top one first. The dummy state is the
+          slowest thing to change in game, so grouping by it saves the most
+          time; position is a single button press and matters least. Within a
+          level the order is shuffled each round, which costs nothing extra.
+          Drag to reorder.
+        </p>
+        <ol id="orderList" class="order"></ol>
+      </section>
+
+      <section class="setting">
+        <h3 class="setting__title">Opponent</h3>
+        <label class="setting__row">
+          <input type="checkbox" id="randomChar">
+          <span>Randomly Choose Dummy Character</span>
+        </label>
+        <div class="setting__row" id="allowedRow">
+          <span>Allowed:</span>
+          <span id="allowedCount" class="setting__count"></span>
+          <button type="button" class="chip" data-allowed="base">Base Roster</button>
+          <button type="button" class="chip" data-allowed="all">All</button>
+          <button type="button" class="chip" data-allowed="none">None</button>
+        </div>
+        <div id="allowedGrid" class="char-grid char-grid--allowed"></div>
+      </section>
+
+      <section class="setting">
+        <h3 class="setting__title">Spaced Repetition</h3>
+
+        <label class="setting__row">
+          <input type="checkbox" id="srEnabled">
+          <span>Schedule Reviews</span>
+        </label>
+
+        <div class="setting__row" id="srPerDayRow">
+          <label for="srPerDay">Combos per day, per character</label>
+          <input type="number" id="srPerDay" class="setting__num" min="1" max="999">
+          <label class="setting__inline">
+            <input type="checkbox" id="srAll"> all due
+          </label>
+        </div>
+
+        <div class="setting__row" id="srMaxRow">
+          <label for="srMaxDays">Delay at most</label>
+          <input type="number" id="srMaxDays" class="setting__num" min="1" max="365">
+          <span>days</span>
+        </div>
+      </section>
+
+      <section class="setting">
+        <h3 class="setting__title">Grade Buttons</h3>
+        <p class="setting__hint">
+          The score at the end always counts Again 0, Hard 3, Good 7 and
+          Easy 10 out of 10, whatever the buttons are called.
+        </p>
+        <label class="setting__row">
+          <input type="checkbox" id="gradeCustom">
+          <span>Custom labels</span>
+        </label>
+        <div class="setting__row" id="gradeRow">
+          <input id="gradeAgain" class="grade-label grade-label--again" type="text" maxlength="10">
+          <input id="gradeHard" class="grade-label grade-label--hard" type="text" maxlength="10">
+          <input id="gradeGood" class="grade-label grade-label--good" type="text" maxlength="10">
+          <input id="gradeEasy" class="grade-label grade-label--easy" type="text" maxlength="10">
+        </div>
+      </section>
+    </div>
+
+    <div class="tabpanel" data-panel="colors" hidden>
+      <section class="setting">
+        <h3 class="setting__title">Notation Colors</h3>
+        <p class="setting__hint">
+          Applies to every theme. Empty a row to fall back to the theme.
+        </p>
+        <div id="colorList" class="colors"></div>
+        <div class="setting__row">
+          <button type="button" class="chip" id="colorReset">Reset all</button>
+        </div>
+      </section>
+
+      <section class="setting">
+        <h3 class="setting__title">Custom Rules</h3>
+        <p class="setting__hint">
+          Own patterns, checked before the built-in notation. Regular
+          expressions; the first matching rule wins.
+        </p>
+        <div id="ruleList" class="rules"></div>
+        <form id="ruleAdd" class="rule-add">
+          <input id="ruleName" class="rule-add__name" type="text" placeholder="Name"
+                 autocomplete="off" maxlength="24">
+          <input id="rulePattern" class="rule-add__pattern" type="text" placeholder="Pattern, e.g. \bOS\b"
+                 autocomplete="off" spellcheck="false">
+          <input id="ruleColor" class="rule-add__color" type="color" value="#22d3ee">
+          <button type="submit" class="chip">Add</button>
+        </form>
+        <p id="ruleError" class="rule-error" hidden></p>
+      </section>
+    </div>
+
+    <div class="dialog__actions">
+      <button type="button" id="settingsClose" class="dialog__btn is-primary">Done</button>
+    </div>
+  </dialog>
+
+  <script src="characters.js"></script>
+  <script src="combo.js"></script>
+</body>
+</html>

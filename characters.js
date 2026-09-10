@@ -1,0 +1,38 @@
+// Guilty Gear -Strive- Roster.
+// Neue Charaktere einfach hier ergaenzen: { id, name, short }
+// id  = Dateiname fuer ein optionales Portrait unter assets/chars/<id>.png
+// short = Kuerzel fuer die Platzhalter-Kachel, solange kein Bild da ist
+const STRIVE_CHARACTERS = [
+  { id: "sol",        name: "Sol Badguy",          short: "SO" },
+  { id: "ky",         name: "Ky Kiske",            short: "KY" },
+  { id: "may",        name: "May",                 short: "MA" },
+  { id: "axl",        name: "Axl Low",             short: "AX" },
+  { id: "chipp",      name: "Chipp Zanuff",        short: "CH" },
+  { id: "potemkin",   name: "Potemkin",            short: "PO" },
+  { id: "faust",      name: "Faust",               short: "FA" },
+  { id: "millia",     name: "Millia Rage",         short: "MI" },
+  { id: "zato",       name: "Zato-1",              short: "ZA" },
+  { id: "ramlethal",  name: "Ramlethal Valentine", short: "RA" },
+  { id: "leo",        name: "Leo Whitefang",       short: "LE" },
+  { id: "nagoriyuki", name: "Nagoriyuki",          short: "NA" },
+  { id: "giovanna",   name: "Giovanna",            short: "GI" },
+  { id: "anji",       name: "Anji Mito",           short: "AN" },
+  { id: "ino",        name: "I-No",                short: "IN" },
+  { id: "goldlewis",  name: "Goldlewis Dickinson", short: "GO" },
+  { id: "jacko",      name: "Jack-O'",             short: "JC" },
+  { id: "happychaos", name: "Happy Chaos",         short: "HC" },
+  { id: "baiken",     name: "Baiken",              short: "BA" },
+  { id: "testament",  name: "Testament",           short: "TE" },
+  { id: "bridget",    name: "Bridget",             short: "BR" },
+  { id: "sin",        name: "Sin Kiske",           short: "SI" },
+  { id: "bedman",     name: "Bedman?",             short: "BE" },
+  { id: "asuka",      name: "Asuka R\u266F",       short: "AS" },
+  { id: "johnny",     name: "Johnny",              short: "JO" },
+  { id: "elphelt",    name: "Elphelt Valentine",   short: "EL" },
+  { id: "aba",        name: "A.B.A",               short: "AB" },
+  { id: "slayer",     name: "Slayer",              short: "SL" },
+  { id: "dizzy",      name: "Queen Dizzy",         short: "DI" },
+  { id: "venom",      name: "Venom",               short: "VE" },
+  { id: "unika",      name: "Unika",               short: "UN" },
+  { id: "lucy",       name: "Lucy",                short: "LU" },
+];
