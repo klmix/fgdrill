@@ -27,6 +27,22 @@
 </head>
 <body class="page-scrolls">
 
+  <!-- Welches Spiel? Oben links, gegenueber dem Themenschalter. Roster,
+       Notation, Vorgabe-Marken und Farben haengen daran. -->
+  <div class="game-switch picker">
+    <button id="gameButton" type="button" class="picker-button game-button"
+            aria-haspopup="menu" aria-expanded="false" title="Switch game">
+      <span id="gameTile" class="game-button__tile"></span>
+      <span id="gameLabel" class="picker-button__label"></span>
+      <svg class="picker-button__caret" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="m6 9 6 6 6-6"/>
+      </svg>
+    </button>
+
+    <div id="gamePanel" class="menu menu--games" role="menu" hidden></div>
+  </div>
+
   <!-- Game, light or dark -->
   <div class="theme-switch" role="group" aria-label="Theme">
     <button type="button" class="theme-switch__btn" data-theme-set="game" title="Game">
@@ -144,7 +160,7 @@
           <div class="editor">
             <div id="comboHighlight" class="editor__highlight" aria-hidden="true"></div>
             <textarea id="comboInput" class="composer__input" rows="1" spellcheck="false"
-                      placeholder="Enter a combo, e.g. 2K > 2D > 236K > 214214H"></textarea>
+                      placeholder="Enter a combo"></textarea>
           </div>
 
         <!-- Notiz zur Combo: erscheint mit Shift+Enter, bleibt danach stehen -->
@@ -452,7 +468,11 @@
     </div>
   </dialog>
 
-  <script src="characters.js"></script>
+  <!-- Ein Spiel je Datei, danach das Verzeichnis. Beides muss vor
+       combo.js stehen: die Notation wird beim Laden daraus gebaut. -->
+  <script src="games/ggst.js"></script>
+  <script src="games/sf6.js"></script>
+  <script src="games/index.js"></script>
   <script src="combo.js"></script>
 </body>
 </html>

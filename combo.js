@@ -34,22 +34,144 @@ const backFace    = document.querySelector(".flip__back");
 const tools       = document.getElementById("pickerTools");
 const grid        = document.getElementById("charGrid");
 
-// Praefix eines Share-Codes. Steht hier oben, weil onInput() schon beim
-// Laden laeuft und looksLikeShare() braucht - Funktionen werden hochgezogen,
-// const-Werte nicht.
-const SHARE_PREFIX = "GGST1-";
+// ============================================================
+//  Das gewaehlte Spiel
+//  Alles Spielspezifische kommt aus games/*.js. Die Bindungen hier
+//  zeigen auf das gerade gewaehlte Spiel und werden von applyGameData()
+//  neu gesetzt - deshalb let und nicht const.
+// ============================================================
+let GAME;
+let CHARACTERS;
+let CHAR_BY_ID;
+let BASE_ROSTER;
+let STATE_DEFAULTS;
+let SHARE_PREFIX;
+let BUTTONS;          // nach Laenge sortiert, laengste zuerst
+let TOKEN_RE;
+let ACTION_FORM;
+let COLOR_ROLES;
+
+// Zeichen, die in einem regulaeren Ausdruck etwas bedeuten, entschaerfen.
+// Notwendig, weil Schreibweisen wie "(CH)" woertlich gemeint sind.
+function escapeRe(text) {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+// Lange Schreibweisen zuerst, sonst schluckt die kurze das Ende der
+// langen - "RC" wuerde sonst aus "FRRC" nur das Ende treffen.
+function longestFirst(liste) {
+  return [...liste].sort((a, b) => b.length - a.length);
+}
+
+// Baut den Zerteiler aus der Notation eines Spiels. Die Gruppen behalten
+// ihre Nummern, tokenize() und normalizeCombo() haengen daran.
+function buildNotation(n) {
+  const btns = n.buttons.map((b) => b.match).join("|");
+  const prefix = "(?:(?:" + longestFirst(n.prefixes).map(escapeRe).join("|") + ")\\.)*";
+  const dirs = n.directions ? "(?:\\[[1-9]\\]|[1-9])*" : "";
+
+  // Buttons koennen gehalten "[H]" oder losgelassen "]H[" sein.
+  const btnTeil = "(?:\\[(?:" + btns + ")+\\]|\\](?:" + btns + ")+\\[|(?:" + btns + ")+)";
+
+  const cancel = longestFirst(n.cancels?.forms ?? []).map(escapeRe).join("|");
+  const counter = longestFirst(n.counter?.forms ?? []).map(escapeRe).join("|");
+  const action = longestFirst(Object.keys(n.actions?.forms ?? {})).map(escapeRe).join("|");
+
+  // Nie leer lassen: eine leere Alternative wuerde ueberall treffen und
+  // die Schleife zum Stillstand bringen.
+  const nie = "(?!)";
+
+  // Die Klammer mit den Wortgrenzen umschliesst alle bedeutungstragenden
+  // Tokens: nur so bleibt "hello" ein Wort und wird nicht eingefaerbt.
+  const re = new RegExp(
+    "(?<![A-Za-z])(?:" +
+      "(" + (cancel || nie) + ")" +                        // 1 Cancel-Familie
+      "|(" + (counter || nie) + ")" +                      // 2 Counter Hit
+      "|(" + prefix + dirs + "(" + btnTeil + "))" +        // 3 Term, 4 Buttons
+      "|(" + (action || nie) + ")" +                       // 5 Bewegung/Cancel
+      (n.directions ? "|([1-9]+)" : "|(" + nie + ")") +    // 6 Richtung ohne Button
+    ")(?![A-Za-z])" +
+      "|([>,~+/()\\[\\]:*])" +                             // 7 Trenner
+      "|([\\s\\S])",                                       // 8 alles andere
+    "gi"
+  );
+
+  return {
+    re,
+    actionForm: { ...(n.actions?.forms ?? {}) },
+    buttons: [...n.buttons]
+      .sort((a, b) => b.match.length - a.match.length)
+      .map((b) => ({ ...b, re: new RegExp("^(?:" + b.match + ")", "i") })),
+  };
+}
+
+// Welche Farben sich einstellen lassen. Die Buttons kommen aus dem Spiel,
+// der Rest sind Rollen, die jedes Spiel hat.
+function buildColorRoles(n) {
+  const rollen = n.buttons.map((b) => ({
+    key: "--tok-btn-" + b.id,
+    label: b.label,
+    sample: b.sample ?? b.id,
+    kinds: b.kinds ?? "",
+  }));
+
+  for (const [teil, key] of [[n.cancels, "--tok-rc"], [n.counter, "--tok-ch"], [n.actions, "--tok-act"]]) {
+    if (!teil) continue;
+    rollen.push({ key, label: teil.label, sample: teil.sample, kinds: teil.kinds ?? "" });
+  }
+
+  if (n.directions) {
+    rollen.push({ key: "--tok-dir", label: "Directions", sample: "236",
+      kinds: "A motion on its own, without a button: 236, 5, [4]6" });
+  }
+
+  rollen.push({ key: "--tok-sep", label: "Separators", sample: ">",
+    kinds: "> , ~ + / ( ) [ ] : *" });
+  rollen.push({ key: "--tok-text", label: "Plain text", sample: "note",
+    kinds: "Everything that is not notation" });
+
+  return rollen;
+}
+
+// Setzt die Bindungen auf ein Spiel um. Beruehrt den Zustand nicht -
+// das macht switchGame().
+function applyGameData(game) {
+  GAME = game;
+  CHARACTERS = game.characters;
+  CHAR_BY_ID = new Map(game.characters.map((c) => [c.id, c]));
+  BASE_ROSTER = game.baseRoster;
+  STATE_DEFAULTS = game.states;
+  SHARE_PREFIX = game.sharePrefix;
+
+  const notation = buildNotation(game.notation);
+  TOKEN_RE = notation.re;
+  ACTION_FORM = notation.actionForm;
+  BUTTONS = notation.buttons;
+  COLOR_ROLES = buildColorRoles(game.notation);
+}
+
+// Muss vor allem anderen laufen: der Zustand unten greift schon darauf zu.
+applyGameData(GAMES[0]);
+
+// Zu welchem Spiel gehoert dieser Code? Erkannt werden alle Spiele, nicht
+// nur das gerade offene - sonst landete ein fremder Code stillschweigend
+// als Combo-Text im Eingabefeld.
+function shareGame(text) {
+  const t = text.trim();
+  return GAMES.find((g) => t.startsWith(g.sharePrefix)) ?? null;
+}
 
 function looksLikeShare(text) {
-  return text.trim().startsWith(SHARE_PREFIX);
+  return shareGame(text) !== null;
 }
 
 // --- Zustand -------------------------------------------------
 const state = {
   // Fuer welchen Charakter werden gerade Combos gesammelt (der eigene).
-  character: STRIVE_CHARACTERS[0].id,
+  character: CHARACTERS[0].id,
   // Gegen welche Charaktere die Combo gilt. Alle sind zu Beginn gewaehlt;
   // "gilt fuer alle" ist damit kein eigener Modus, sondern eine volle Auswahl.
-  selected: new Set(STRIVE_CHARACTERS.map((c) => c.id)),
+  selected: new Set(CHARACTERS.map((c) => c.id)),
   position: "everywhere", // Bildschirmposition, siehe POSITIONS
   entries: [],            // bereits angelegte Combos
   expanded: new Set(),    // Charaktere, deren Liste komplett gezeigt wird
@@ -101,11 +223,10 @@ function tagLabel(name) {
 // Zielscheibe weiter greifen.
 const DRILL_STATE = "drill";
 
-const STATE_DEFAULTS = ["jumping", "crouching", "🎯 drill"];
-
 // Einzige Quelle fuer die Vorgaben - sonst laufen Startliste und
 // Nachtrag beim Laden auseinander.
 state.states = [...STATE_DEFAULTS];
+
 
 function istDrillName(name) {
   return tagLabel(name).toLowerCase() === DRILL_STATE;
@@ -133,71 +254,60 @@ const ORDER_MOVE = "@move";   // erster Move der Combo
 // Die festen Kriterien; sie bleiben immer in der Liste.
 const ORDER_FIXED = [ORDER_CH, ORDER_POS, ORDER_MOVE];
 
-// Welche Notationsfarben sich einstellen lassen. Der Beispieltext zeigt,
-// worauf sich die Farbe auswirkt.
-const COLOR_ROLES = [
-  { key: "--tok-p", label: "Punch", sample: "5P",
-    kinds: "Whole term ending in P: P, 2P, 5P, j.P, 236P, 5[P]" },
-  { key: "--tok-k", label: "Kick", sample: "2K",
-    kinds: "Whole term ending in K: K, 2K, j.K, 214K" },
-  { key: "--tok-s", label: "Slash", sample: "c.S",
-    kinds: "Whole term ending in S: S, c.S, f.S, 236S" },
-  { key: "--tok-h", label: "Heavy Slash", sample: "5H",
-    kinds: "Whole term ending in H: H, 5H, j.H, 632146H, 5[H]" },
-  { key: "--tok-d", label: "Dust", sample: "j.D",
-    kinds: "Whole term ending in D: D, 2D, j.D" },
-  { key: "--tok-rc", label: "Roman Cancel", sample: "RC",
-    kinds: "RC, YRC, BRC, PRC, RRC, FRRC" },
-  { key: "--tok-ch", label: "Counter Hit", sample: "CH",
-    kinds: "CH and (CH), anywhere in the combo" },
-  { key: "--tok-act", label: "Movement, cancels", sample: "66",
-    kinds: "dash, 66, 44, md, jc, hjc, sjc, dc, adc, IAD, IAS, JI, whiff, land, delay" },
-  { key: "--tok-dir", label: "Directions", sample: "236",
-    kinds: "A motion on its own, without a button: 236, 5, [4]6" },
-  { key: "--tok-sep", label: "Separators", sample: ">",
-    kinds: "> , ~ + / ( ) [ ] : *" },
-  { key: "--tok-text", label: "Plain text", sample: "note",
-    kinds: "Everything that is not notation" },
-];
-
 const HEX_RE = /^#[0-9a-fA-F]{6}$/;
 
 // Positionen im Training, aufsteigend nach Aufwand. "everywhere" fehlt
 // bewusst: solche Combos passen ueberall und werden dazwischengestreut.
 const TRAINING_POSITIONS = ["center", "corner", "backtocorner"];
 
-// Ohne Season Pass verfuegbar - Voreinstellung fuer die Zufallsauswahl.
-const BASE_ROSTER = [
-  "sol", "ky", "may", "axl", "chipp", "potemkin", "faust", "millia",
-  "zato", "ramlethal", "leo", "nagoriyuki", "giovanna", "anji", "ino",
-];
-
 const TAG = 24 * 60 * 60 * 1000;
 
-state.settings = {
-  // Was zuerst zusammengefasst wird. Oben zuerst; per Ziehen aenderbar.
-  // Der Charakterwechsel steht bewusst nicht drin: er ist immer das
-  // Teuerste und daher fest an erster Stelle.
-  // Start Move steht ganz unten - er gruppiert am feinsten und
-  // kostet im Spiel gar nichts.
-  order: [...STATE_DEFAULTS, ORDER_CH, ORDER_POS, ORDER_MOVE],
+// Die Vorgaben haengen am Spiel - Marken, Roster, Reihenfolge. Deshalb
+// eine Funktion und kein Literal: beim Spielwechsel wird sie neu gerufen.
+function defaultSettings() {
+  return {
+    // Was zuerst zusammengefasst wird. Oben zuerst; per Ziehen aenderbar.
+    // Der Charakterwechsel steht bewusst nicht drin: er ist immer das
+    // Teuerste und daher fest an erster Stelle.
+    // Start Move steht ganz unten - er gruppiert am feinsten und
+    // kostet im Spiel gar nichts.
+    order: [...STATE_DEFAULTS, ORDER_CH, ORDER_POS, ORDER_MOVE],
 
-  // Beschriftung der Bewertungsknoepfe. Die Punktwertung haengt nicht
-  // daran - sie ist fest, sonst waere der Prozentwert nicht vergleichbar.
-  grades: { custom: false, again: "0/10", hard: "3+/10", good: "6+/10", easy: "9+/10" },
+    // Beschriftung der Bewertungsknoepfe. Die Punktwertung haengt nicht
+    // daran - sie ist fest, sonst waere der Prozentwert nicht vergleichbar.
+    grades: { custom: false, again: "0/10", hard: "3+/10", good: "6+/10", easy: "9+/10" },
 
-  colors: {},   // eigene Notationsfarben, nur die Abweichungen
-  rules: [],    // eigene Muster: { name, pattern, color }
+    colors: {},   // eigene Notationsfarben, nur die Abweichungen
+    rules: [],    // eigene Muster: { name, pattern, color }
 
-  randomCharacter: false,
-  allowedChars: new Set(BASE_ROSTER),
+    randomCharacter: false,
+    allowedChars: new Set(BASE_ROSTER),
 
-  sr: {
-    enabled: true,
-    perDay: 20,      // null = alle faelligen
-    maxDays: 7,      // Obergrenze fuer den Aufschub
-  },
-};
+    sr: {
+      enabled: true,
+      perDay: 20,      // null = alle faelligen
+      maxDays: 7,      // Obergrenze fuer den Aufschub
+    },
+  };
+}
+
+// Setzt alles Spielabhaengige auf die Vorgaben zurueck. Danach legt
+// loadStored() den gespeicherten Stand des Spiels darueber.
+function resetStateForGame() {
+  state.character = CHARACTERS[0].id;
+  state.selected = new Set(CHARACTERS.map((c) => c.id));
+  state.position = "everywhere";
+  state.entries = [];
+  state.expanded = new Set();
+  state.editing = new Set();
+  state.states = [...STATE_DEFAULTS];
+  state.activeStates = new Set();
+  state.tagFilter = new Set();
+  state.reviewed = {};
+  state.settings = defaultSettings();
+}
+
+state.settings = defaultSettings();
 
 // ============================================================
 //  Reihenfolge im Training
@@ -343,7 +453,7 @@ function applyGrade(entry, grade) {
 // Gegen welche der erlaubten Charaktere funktioniert diese Combo?
 function moeglicheGegner(entry) {
   const eigene = entry.characters === "ALL"
-    ? STRIVE_CHARACTERS.map((c) => c.id)
+    ? CHARACTERS.map((c) => c.id)
     : entry.characters;
   return new Set(eigene.filter((id) => state.settings.allowedChars.has(id)));
 }
@@ -477,10 +587,8 @@ function ordneRunde(auswahl) {
   return queue;
 }
 
-const CHAR_BY_ID = new Map(STRIVE_CHARACTERS.map((c) => [c.id, c]));
-
 function allSelected() {
-  return state.selected.size === STRIVE_CHARACTERS.length;
+  return state.selected.size === CHARACTERS.length;
 }
 
 // ============================================================
@@ -577,50 +685,16 @@ function autoGrow(feld) {
 //  Die farbige Fassung liegt als eigene Ebene hinter dem Textfeld,
 //  weil ein <textarea> selbst keine Teilfarben kann.
 // ============================================================
-// Bausteine eines Notations-Terms (z.B. "j.236[H]"):
-//   PREFIX  j. / c. / f. / hj. / dl. ...
-//   DIRS    Richtungen inkl. Ladeeingabe: 236, 5, [4]6
-//   BTNS    Buttons, optional gehalten "[H]" oder losgelassen "]H["
-const T_PREFIX = /(?:(?:hj|dj|sj|jc|tk|dl|j|c|f)\.)*/;
-const T_DIRS   = /(?:\[[1-9]\]|[1-9])*/;
-const T_BTNS   = /(?:\[[PKSHD]+\]|\][PKSHD]+\[|[PKSHD]+)/;
-
-// Roman Cancels, laengste zuerst - sonst schluckt RC das Ende von FRRC.
-const T_RC     = /FRRC|YRC|BRC|PRC|RRC|RC/;
-
-// Counter Hit, mit oder ohne Klammern. Gilt nur am Zeilenanfang,
-// das prueft der Aufrufer - im Muster laesst sich das nicht ausdruecken.
-const T_CH     = /\(CH\)|CH/;
-
-// Bewegung, Cancels und Hinweise. Laengere zuerst, damit z.B. "hjc"
-// nicht als "jc" mit vorangestelltem h gelesen wird.
-const T_ACTION = /whiff|delay|dash|land|hjc|sjc|adc|IAD|IAS|jc|dc|md|JI|66|44/;
-
-const T_SEP    = /[>,~+\/()\[\]:*]/;
-const T_ANY    = /[\s\S]/;
-
-// Die Klammer mit den Wortgrenzen umschliesst alle bedeutungstragenden
-// Tokens: nur so bleibt "hello" ein Wort und wird nicht zu "Hello" mit
-// rotem H. Trenner und Restzeichen stehen bewusst ausserhalb.
-const TOKEN_RE = new RegExp(
-  "(?<![A-Za-z])(?:" +
-    "(" + T_RC.source + ")" +                                             // 1 Roman Cancel
-    "|(" + T_CH.source + ")" +                                            // 2 Counter Hit
-    "|(" + T_PREFIX.source + T_DIRS.source + "(" + T_BTNS.source + "))" +  // 3 Term, 4 Buttons
-    "|(" + T_ACTION.source + ")" +                                        // 5 Bewegung/Cancel
-    "|([1-9]+)" +                                                         // 6 Richtung ohne Button
-  ")(?![A-Za-z])" +
-  "|(" + T_SEP.source + ")" +                                             // 7 Trenner
-  "|(" + T_ANY.source + ")",                                              // 8 alles andere
-  "gi"
-);
-
-// Schreibweise der Bewegungs-Kuerzel: manche sind ueblich klein, manche gross.
-const ACTION_FORM = {
-  whiff: "whiff", delay: "delay", dash: "dash", land: "land",
-  hjc: "hjc", sjc: "sjc", adc: "adc", jc: "jc", dc: "dc", md: "md",
-  iad: "IAD", ias: "IAS", ji: "JI", "66": "66", "44": "44",
-};
+// Welcher Button steckt im Button-Teil eines Terms? Die Klammern des
+// Haltens fallen weg; gesucht wird die laengste passende Schreibweise,
+// damit in einem Spiel mit P und LP nicht das kurze gewinnt.
+function buttonIdOf(text) {
+  const roh = text.replace(/[\[\]]/g, "");
+  for (const b of BUTTONS) {
+    if (b.re.test(roh)) return b.id;
+  }
+  return BUTTONS[0].id;
+}
 
 function escapeHtml(text) {
   return text.replace(/[&<>]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[ch]));
@@ -707,8 +781,8 @@ function tokenize(text) {
     } else if (m[3]) {
       // Der komplette Term traegt die Farbe seines Buttons, nicht nur der
       // Buchstabe: "2K" ist also durchgehend blau, nicht nur das K.
-      const button = m[4].replace(/[^PKSHD]/gi, "")[0].toUpperCase();
-      html += '<span class="tok-move tok-' + button + '">' + piece + "</span>";
+      html += '<span class="tok-move" style="color:var(--tok-btn-' + buttonIdOf(m[4]) +
+              ')">' + piece + "</span>";
     } else if (m[5]) {
       html += '<span class="tok-move tok-act">' + piece + "</span>";
     } else if (m[6]) {
@@ -932,12 +1006,16 @@ function charIcon(char, className) {
   icon.textContent = char.short;
   icon.title = char.name;
 
-  // Optionales Portrait: assets/chars/<id>.png . Fehlt es, bleibt das Kuerzel stehen.
-  const img = document.createElement("img");
-  img.src = "assets/chars/" + char.id + ".png";
-  img.alt = "";
-  img.addEventListener("error", () => img.remove());
-  icon.append(img);
+  // Portraits liegen unter assets/chars/<spiel>/<id>.png . Ein Spiel ohne
+  // Bilder setzt portraits: false - sonst liefe jeder Aufbau in dreissig
+  // vergebliche Anfragen. Fehlt ein einzelnes Bild, bleibt das Kuerzel.
+  if (GAME.portraits !== false) {
+    const img = document.createElement("img");
+    img.src = "assets/chars/" + GAME.id + "/" + char.id + ".png";
+    img.alt = "";
+    img.addEventListener("error", () => img.remove());
+    icon.append(img);
+  }
 
   return icon;
 }
@@ -946,7 +1024,7 @@ function charIcon(char, className) {
 function buildGrid() {
   grid.innerHTML = "";
 
-  for (const char of STRIVE_CHARACTERS) {
+  for (const char of CHARACTERS) {
     const tile = document.createElement("button");
     tile.type = "button";
     tile.className = "char";
@@ -992,7 +1070,7 @@ function render() {
 function buildWhoGrid() {
   whoGrid.innerHTML = "";
 
-  for (const char of STRIVE_CHARACTERS) {
+  for (const char of CHARACTERS) {
     const tile = document.createElement("button");
     tile.type = "button";
     tile.className = "char";
@@ -1255,13 +1333,70 @@ registerPopover(stateBtn, statePanel);            // Special States
 // Waehrend des Trainings steht der Charakter fest.
 const whoPop = registerPopover(whoBtn, whoPanel, () => !state.training);
 
+// --- Spielauswahl --------------------------------------------
+const gameBtn = document.getElementById("gameButton");
+const gamePanel = document.getElementById("gamePanel");
+const gameLabel = document.getElementById("gameLabel");
+const gameTile = document.getElementById("gameTile");
+
+function buildGameList() {
+  gamePanel.innerHTML = "";
+
+  for (const spiel of GAMES) {
+    const item = document.createElement("button");
+    item.type = "button";
+    item.className = "menu__item";
+    item.dataset.game = spiel.id;
+    item.setAttribute("role", "menuitemradio");
+
+    const kachel = document.createElement("span");
+    kachel.className = "game-tile";
+    kachel.textContent = spiel.short;
+
+    const label = document.createElement("span");
+    label.className = "menu__label";
+    label.textContent = spiel.name;
+
+    item.innerHTML = STATE_CHECK_SVG;
+    item.prepend(kachel, label);
+    gamePanel.append(item);
+  }
+}
+
+function syncGameUi() {
+  gameLabel.textContent = GAME.name;
+  gameTile.textContent = GAME.short;
+  input.placeholder = GAME.example
+    ? "Enter a combo, e.g. " + GAME.example
+    : "Enter a combo";
+
+  gamePanel.querySelectorAll("[data-game]").forEach((item) => {
+    const an = item.dataset.game === GAME.id;
+    item.classList.toggle("is-active", an);
+    item.setAttribute("aria-checked", String(an));
+  });
+}
+
+// Waehrend eines Durchlaufs steht das Spiel fest - wie der Charakter auch.
+const gamePop = registerPopover(gameBtn, gamePanel, () => !state.training);
+
+gamePanel.addEventListener("click", (e) => {
+  const id = e.target.closest("[data-game]")?.dataset.game;
+  if (!id) return;
+
+  closePopover(gamePop);
+  switchGame(id);
+});
+
+buildGameList();
+
 // --- Alle / Keine --------------------------------------------
 tools.addEventListener("click", (e) => {
   const action = e.target.closest("[data-select]")?.dataset.select;
   if (!action) return;
 
   state.selected.clear();
-  if (action === "all") STRIVE_CHARACTERS.forEach((c) => state.selected.add(c.id));
+  if (action === "all") CHARACTERS.forEach((c) => state.selected.add(c.id));
   render();
 });
 
@@ -1289,12 +1424,12 @@ function iconsFor(characters) {
   if (characters === "ALL") return null;
 
   const chosen = new Set(characters);
-  const missing = STRIVE_CHARACTERS.filter((c) => !chosen.has(c.id));
+  const missing = CHARACTERS.filter((c) => !chosen.has(c.id));
 
   if (missing.length < chosen.size) {
     return { chars: missing, muted: true };
   }
-  return { chars: STRIVE_CHARACTERS.filter((c) => chosen.has(c.id)), muted: false };
+  return { chars: CHARACTERS.filter((c) => chosen.has(c.id)), muted: false };
 }
 
 // Notizen duerfen Links auf Combo-Videos enthalten - die sollen in der
@@ -1458,7 +1593,7 @@ function newStateControl(entry, neuZeichnen = renderEntries) {
 // Gegnerauswahl an einem Eintrag: kleines Ausklappmenue statt des
 // grossen 540er-Rasters, das pro Zeile viel zu wuchtig waere.
 function setEntryChars(entry, ids) {
-  entry.characters = ids.length === STRIVE_CHARACTERS.length ? "ALL" : ids;
+  entry.characters = ids.length === CHARACTERS.length ? "ALL" : ids;
   touch(entry);
   // Selber sichern: waehrend das Menue offen ist wird bewusst nicht neu
   // gezeichnet, es kaeme also sonst niemand zum Speichern.
@@ -1467,7 +1602,7 @@ function setEntryChars(entry, ids) {
 
 function entryCharIds(entry) {
   return entry.characters === "ALL"
-    ? STRIVE_CHARACTERS.map((c) => c.id)
+    ? CHARACTERS.map((c) => c.id)
     : [...entry.characters];
 }
 
@@ -1490,7 +1625,7 @@ function fillEntryCharMenu(entry, menu) {
   grid.className = "char-grid";
   const gewaehlt = new Set(entryCharIds(entry));
 
-  for (const char of STRIVE_CHARACTERS) {
+  for (const char of CHARACTERS) {
     const tile = document.createElement("button");
     tile.type = "button";
     tile.className = "char";
@@ -1863,7 +1998,7 @@ function renderEntries() {
   }
 
   // Zuletzt bearbeitet, ergaenzt oder trainiert kommt nach oben.
-  const charaktere = STRIVE_CHARACTERS
+  const charaktere = CHARACTERS
     .filter((c) => byChar.has(c.id))
     .sort((a, b) => lastTouched(b.id) - lastTouched(a.id));
 
@@ -1925,7 +2060,7 @@ function entryPickerClick(e, neuZeichnen) {
   const alleKeine = e.target.closest("[data-entry-select]")?.dataset.entrySelect;
   if (alleKeine && openEntryPicker) {
     const { entry, menu, button } = openEntryPicker;
-    setEntryChars(entry, alleKeine === "all" ? STRIVE_CHARACTERS.map((c) => c.id) : []);
+    setEntryChars(entry, alleKeine === "all" ? CHARACTERS.map((c) => c.id) : []);
 
     const gewaehlt = new Set(entryCharIds(entry));
     menu.querySelectorAll("[data-entry-char]").forEach((t) =>
@@ -2050,12 +2185,14 @@ function saveCombo() {
 function resetComposer() {
   input.value = "";
   comment.value = "";
-  comment.hidden = true;
+  // Das Notizfeld bleibt stehen - es soll ohne Zutun da sein, nicht erst
+  // nach Shift+Enter. Geleert wird es, versteckt nicht.
+  autoGrow(comment);
 
   state.position = "everywhere";
   syncPositionUi();
 
-  state.selected = new Set(STRIVE_CHARACTERS.map((c) => c.id));
+  state.selected = new Set(CHARACTERS.map((c) => c.id));
   state.activeStates.clear();
   render();
   syncStates();
@@ -2703,7 +2840,7 @@ const gearPop = registerPopover(settingsBtn, settingsMenu, () => {
 // ============================================================
 //  Teilen, Import und Export
 //  Ein Share-Code enthaelt die Combos genau eines Charakters. Aufbau:
-//    GGST1-<base64url>
+//    <Spielkennung>-<base64url>, z.B. GGST1-...
 //  Die Nutzdaten sind ein Byte Kennung (1 = deflate, 0 = roh) plus
 //  JSON mit kurzen Feldnamen. Das Praefix ist noetig, damit sich der
 //  Code beim Einfuegen sicher von einer echten Combo unterscheiden
@@ -2882,11 +3019,38 @@ const ruleError = document.getElementById("ruleError");
 // Das schlaegt jedes Thema, gilt also unabhaengig von hell, dunkel, game.
 function applyColorOverrides() {
   const wurzel = document.documentElement;
+  const hell = wurzel.dataset.theme === "light";
+  const n = GAME.notation;
 
+  // Die Farben des Spiels bilden die Grundlage. Das helle Thema braucht
+  // eigene Werte - was auf Schwarz leuchtet, verschwindet auf Weiss.
+  const basis = {};
+  for (const b of n.buttons) {
+    basis["--tok-btn-" + b.id] = hell ? (b.light ?? b.color) : b.color;
+  }
+  for (const [teil, key] of [[n.cancels, "--tok-rc"], [n.counter, "--tok-ch"], [n.actions, "--tok-act"]]) {
+    if (teil?.color) basis[key] = hell ? (teil.light ?? teil.color) : teil.color;
+  }
+
+  for (const [key, wert] of Object.entries(basis)) wurzel.style.setProperty(key, wert);
+
+  // Eigene Farben darueber; wo keine gesetzt ist, bleibt die des Spiels.
   for (const rolle of COLOR_ROLES) {
     const wert = state.settings.colors[rolle.key];
     if (wert && HEX_RE.test(wert)) wurzel.style.setProperty(rolle.key, wert);
-    else wurzel.style.removeProperty(rolle.key);
+    else if (!(rolle.key in basis)) wurzel.style.removeProperty(rolle.key);
+  }
+}
+
+// Das Spielthema: was in game.theme steht, ueberschreibt die Vorgaben aus
+// dem Stylesheet. In den neutralen Themen bleibt es aussen vor.
+function applyGameTheme() {
+  const wurzel = document.documentElement;
+  const an = wurzel.dataset.theme === "game";
+
+  for (const [key, wert] of Object.entries(GAME.theme ?? {})) {
+    if (an) wurzel.style.setProperty(key, wert);
+    else wurzel.style.removeProperty(key);
   }
 }
 
@@ -3136,11 +3300,14 @@ function syncStateOrder() {
   }
 }
 
-const ORDER_LABEL = {
-  [ORDER_CH]: "Counter Hit",
-  [ORDER_POS]: "Position",
-  [ORDER_MOVE]: "Start Move",
-};
+// Wie die feste Ebene heisst, sagt das Spiel: nicht ueberall heisst der
+// Treffer in die Bewegung "Counter Hit".
+function orderLabel(key) {
+  if (key === ORDER_CH) return GAME.notation.counter?.label ?? "Counter Hit";
+  if (key === ORDER_POS) return "Position";
+  if (key === ORDER_MOVE) return "Start Move";
+  return key;
+}
 
 function buildOrderList() {
   syncStateOrder();
@@ -3167,7 +3334,7 @@ function buildOrderList() {
 
     const text = document.createElement("span");
     text.className = "order__label";
-    text.textContent = ORDER_LABEL[token] ?? token;
+    text.textContent = ORDER_FIXED.includes(token) ? orderLabel(token) : tagLabel(token);
 
     item.innerHTML = GRIP_SVG;
     item.prepend(punkt);
@@ -3219,7 +3386,7 @@ orderList.addEventListener("dragend", () => {
 function buildAllowedGrid() {
   allowedGrid.innerHTML = "";
 
-  for (const char of STRIVE_CHARACTERS) {
+  for (const char of CHARACTERS) {
     const tile = document.createElement("button");
     tile.type = "button";
     tile.className = "char";
@@ -3238,7 +3405,7 @@ function syncAllowedUi() {
   allowedRow.classList.toggle("is-off", !an);
   allowedGrid.classList.toggle("is-off", !an);
   allowedCount.textContent =
-    state.settings.allowedChars.size + " of " + STRIVE_CHARACTERS.length;
+    state.settings.allowedChars.size + " of " + CHARACTERS.length;
 
   allowedGrid.querySelectorAll(".char").forEach((tile) => {
     tile.setAttribute("aria-pressed",
@@ -3263,7 +3430,7 @@ allowedRow.addEventListener("click", (e) => {
 
   const erlaubt = state.settings.allowedChars;
   erlaubt.clear();
-  if (was === "all") STRIVE_CHARACTERS.forEach((c) => erlaubt.add(c.id));
+  if (was === "all") CHARACTERS.forEach((c) => erlaubt.add(c.id));
   else if (was === "base") BASE_ROSTER.forEach((id) => erlaubt.add(id));
 
   syncAllowedUi();
@@ -3421,9 +3588,19 @@ async function shareCharacter(charId) {
 // --- Einfuegen erkennen ---------------------------------------
 input.addEventListener("paste", async (e) => {
   const text = e.clipboardData?.getData("text") ?? "";
-  if (!looksLikeShare(text)) return;
+  const spiel = shareGame(text);
+  if (!spiel) return;
 
   e.preventDefault();    // muss vor dem ersten await passieren
+
+  // Ein Code aus einem anderen Spiel passt weder zum Roster noch zur
+  // Notation - er wird nicht heimlich uebernommen.
+  if (spiel.id !== GAME.id) {
+    showNotice("That code belongs to " + spiel.name + ". Switch to that game first.", "error");
+    input.value = "";
+    onInput();
+    return;
+  }
 
   let paket;
   try {
@@ -3483,7 +3660,7 @@ const importFile = document.getElementById("importFile");
 async function codeAusZwischenablage() {
   try {
     const text = await navigator.clipboard.readText();
-    if (!looksLikeShare(text)) return null;
+    if (shareGame(text)?.id !== GAME.id) return null;   // fremd oder keiner
     return await readShareCode(text.trim());
   } catch {
     return null;    // kein Zugriff oder unlesbar - dann eben nur die Datei
@@ -3553,7 +3730,41 @@ importFile.addEventListener("change", async () => {
 //  Sets lassen sich nicht als JSON schreiben, deshalb wandern sie als
 //  Listen raus und werden beim Laden wieder eingesammelt.
 // ============================================================
-const STORAGE_KEY = "ggst-combo-trainer-v1";
+// Jede Spielsammlung liegt fuer sich - Combos, Marken und Einstellungen
+// gehoeren zum Spiel, nicht zur Person. Daneben eine kleine Ablage fuer
+// das, was uebergreifend gilt: welches Spiel zuletzt offen war.
+const APP_KEY = "fgdrills-app";
+const LEGACY_KEY = "ggst-combo-trainer-v1";
+
+function storageKey(gameId = GAME.id) {
+  return "fgdrills-game-" + gameId;
+}
+
+function readJson(key) {
+  try {
+    const roh = localStorage.getItem(key);
+    return roh ? JSON.parse(roh) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeJson(key, wert) {
+  try {
+    localStorage.setItem(key, JSON.stringify(wert));
+  } catch {
+    // Privater Modus oder Speicher voll - dann laeuft es eben ohne Ablage.
+  }
+}
+
+// Der Stand aus der Zeit vor der Spielauswahl gehoert zu Guilty Gear.
+// Einmalig umziehen, das Original bleibt als Sicherheitsnetz liegen.
+function migrateLegacy() {
+  if (readJson(APP_KEY)) return;
+
+  const alt = readJson(LEGACY_KEY);
+  if (alt && !readJson(storageKey("ggst"))) writeJson(storageKey("ggst"), alt);
+}
 let saveTimer = null;
 
 function persist() {
@@ -3581,22 +3792,12 @@ function saveNow() {
     },
   };
 
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(daten));
-  } catch {
-    // Privater Modus oder Speicher voll - dann laeuft es eben ohne Ablage.
-  }
+  writeJson(storageKey(), daten);
+  writeJson(APP_KEY, { v: 1, game: GAME.id });
 }
 
 function loadStored() {
-  let daten;
-  try {
-    const roh = localStorage.getItem(STORAGE_KEY);
-    if (!roh) return;
-    daten = JSON.parse(roh);
-  } catch {
-    return;
-  }
+  const daten = readJson(storageKey());
   if (!daten || typeof daten !== "object") return;
 
   if (Array.isArray(daten.entries)) {
@@ -3676,23 +3877,55 @@ themeSwitch.addEventListener("click", (e) => {
     localStorage.setItem(THEME_KEY, wanted);
   } catch { /* without storage the choice lasts for this session only */ }
 
+  // Beide haengen am Thema: das Spielthema gilt nur unter "game", und die
+  // Notationsfarben haben im hellen Thema eigene Werte.
+  applyGameTheme();
+  applyColorOverrides();
   syncTheme();
 });
 
 syncTheme();
 
-// --- Start ---------------------------------------------------
-loadStored();
-applyGradeLabels();
-applyColorOverrides();
-invalidateRules();
+// --- Spielwechsel --------------------------------------------
+// Alles, was am Spiel haengt, neu aufbauen: Notation, Farben, Zustand
+// und jede Liste, die Charaktere oder Marken zeigt.
+function loadGame(game) {
+  applyGameData(game);
+  resetStateForGame();
+  loadStored();
 
-buildGrid();
-buildWhoGrid();
-syncWho();
-render();
-buildPositionMenu();
-syncPositionUi();
-buildStateList();
-syncStates();
-renderEntries();
+  applyGradeLabels();
+  applyGameTheme();
+  applyColorOverrides();
+  invalidateRules();
+
+  buildGrid();
+  buildWhoGrid();
+  syncWho();
+  render();
+  buildPositionMenu();
+  syncPositionUi();
+  buildStateList();
+  syncStates();
+  syncGameUi();
+  renderEntries();
+}
+
+function switchGame(id) {
+  const game = gameById(id);
+  if (game.id === GAME.id) return;
+
+  // Der laufende Durchlauf gehoert zum alten Spiel - erst beenden.
+  if (state.training) stopTraining();
+
+  saveNow();                 // den Stand des alten Spiels sichern
+  closeEntryPicker(false);
+  POPOVERS.forEach(closePopover);
+
+  loadGame(game);
+  writeJson(APP_KEY, { v: 1, game: game.id });
+}
+
+// --- Start ---------------------------------------------------
+migrateLegacy();
+loadGame(gameById(readJson(APP_KEY)?.game ?? GAMES[0].id));

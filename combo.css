@@ -33,14 +33,6 @@
   --hairline: #e5e7eb;
 
   /* Button-Farben der Combo-Notation (Dustloop-Schema) */
-  --tok-p: #e250a4;   /* Punch  */
-  --tok-k: #2f8fd8;   /* Kick   */
-  --tok-s: #3aa757;   /* Slash  */
-  --tok-h: #d93f3f;   /* Heavy Slash */
-  --tok-d: #e8912b;   /* Dust   */
-  --tok-rc: #8b5cf6;  /* Roman Cancel */
-  --tok-ch: #ff7300;  /* Counter Hit */
-  --tok-act: #0891b2; /* Bewegung und Cancels: dash, 66, jc, IAD ... */
   --tok-dir: #4b5563; /* Richtungseingaben (236, 2, j. ...) */
   --tok-sep: #9ca3af; /* > , ~ ( ) usw. */
   --tok-text: var(--muted); /* alles, was keine Notation ist */
@@ -143,14 +135,6 @@
   --send-bg-hover: #f24b44;
   --send-fg: #ffffff;
 
-  --tok-p: #f472b6;
-  --tok-k: #60a5fa;
-  --tok-s: #4ade80;
-  --tok-h: #f87171;
-  --tok-d: #fbbf24;
-  --tok-rc: #a78bfa;
-  --tok-ch: #e879f9;
-  --tok-act: #22d3ee;
   --tok-dir: #8d8d8d;
   --tok-sep: #6d6d6d;
 
@@ -203,14 +187,6 @@
   --accent-hover: #3b82f6;
 
   /* Notation: dieselben Farbtoene, aber hell genug fuer dunklen Grund. */
-  --tok-p: #f472b6;
-  --tok-k: #60a5fa;
-  --tok-s: #4ade80;
-  --tok-h: #f87171;
-  --tok-d: #fbbf24;
-  --tok-rc: #a78bfa;
-  --tok-ch: #e879f9;
-  --tok-act: #22d3ee;
   --tok-dir: #8b95a3;
   --tok-sep: #6b7481;
 
@@ -492,11 +468,8 @@ body.page-scrolls { height: auto; min-height: 100vh; }
 .composer__input::placeholder { color: var(--text-faint); font-weight: 500; }
 
 /* Farben der Notation - der ganze Term traegt die Farbe, nicht nur der Button */
-.tok-P  { color: var(--tok-p);  }
-.tok-K  { color: var(--tok-k);  }
-.tok-S  { color: var(--tok-s);  }
-.tok-H  { color: var(--tok-h);  }
-.tok-D  { color: var(--tok-d);  }
+/* Die Buttons faerbt combo.js ueber --tok-btn-<id>: welche es gibt,
+   weiss erst die Spieldefinition. */
 .tok-RC { color: var(--tok-rc); }
 .tok-act { color: var(--tok-act); }
 
@@ -2069,16 +2042,16 @@ body.page-scrolls { height: auto; min-height: 100vh; }
 [data-theme="game"] .entry__stage { color: var(--accent); }
 
 /* Die Karte selbst bekommt eine Kante in Rot, wie die Panels im Spiel. */
-[data-theme="game"] .composer__box { border-color: #4a2320; }
+[data-theme="game"] .composer__box { border-color: color-mix(in srgb, var(--accent) 28%, var(--page-bg)); }
 [data-theme="game"] .composer__box:focus-within { border-color: var(--accent); }
-[data-theme="game"] .group { border-color: #3a2422; }
+[data-theme="game"] .group { border-color: color-mix(in srgb, var(--accent) 20%, var(--page-bg)); }
 
 /* Symbole und Umrandung der Einstellungs-Knoepfe im Spiel-Thema. */
 [data-theme="game"] .picker-button__icon,
 [data-theme="game"] .picker-button__stage { color: var(--accent); }
 
 [data-theme="game"] .picker-button,
-[data-theme="game"] .toolbar__btn { border-color: #6b2b26; }
+[data-theme="game"] .toolbar__btn { border-color: color-mix(in srgb, var(--accent) 45%, var(--page-bg)); }
 
 [data-theme="game"] .picker-button:hover,
 [data-theme="game"] .toolbar__btn:hover { border-color: var(--accent); }
@@ -2111,7 +2084,7 @@ body.page-scrolls { height: auto; min-height: 100vh; }
 }
 .head-help:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-[data-theme="game"] .head-help { border-color: #6b2b26; }
+[data-theme="game"] .head-help { border-color: color-mix(in srgb, var(--accent) 45%, var(--page-bg)); }
 [data-theme="game"] .head-help:hover { border-color: var(--accent); }
 
 /* ============================================================
@@ -2363,4 +2336,55 @@ body.page-scrolls { height: auto; min-height: 100vh; }
   /* Nicht mehr festgenagelt, sonst liegt der Schalter auf dem Hilfeknopf.
      So faehrt er mit dem Logo nach oben aus dem Bild. */
   .theme-switch { position: absolute; }
+}
+
+/* ============================================================
+   Spielauswahl oben links
+   ============================================================ */
+.game-switch {
+  position: fixed;
+  top: 18px;
+  left: 20px;
+  z-index: 50;
+}
+
+.game-button {
+  gap: 7px;
+  padding: 5px 10px 5px 5px;
+  max-width: 240px;
+}
+
+/* Kuerzel des Spiels, bis es ein Logo gibt. */
+.game-button__tile,
+.game-tile {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  background: var(--fill-strong);
+  color: var(--tile-fg);
+  border-radius: 7px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .02em;
+}
+
+.menu--games { min-width: 240px; }
+.menu--games .game-tile { margin-right: 2px; }
+
+/* Der Akzent traegt auch hier das Spielthema. */
+[data-theme="game"] .game-button { border-color: var(--accent); }
+[data-theme="game"] .game-button:hover { background: var(--accent-soft); }
+
+/* Auf schmalen Schirmen nur das Kuerzel - der Name kostet zu viel Breite. */
+@media (max-width: 560px) {
+  .game-switch { top: 10px; left: 10px; }
+  .game-button { padding: 5px; max-width: none; }
+  .game-button .picker-button__label,
+  .game-button .picker-button__caret { display: none; }
+}
+
+@media (max-height: 560px) {
+  .game-switch { position: absolute; }
 }
