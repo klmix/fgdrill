@@ -3238,7 +3238,7 @@ function syncAllowedUi() {
   allowedRow.classList.toggle("is-off", !an);
   allowedGrid.classList.toggle("is-off", !an);
   allowedCount.textContent =
-    state.settings.allowedChars.size + " von " + STRIVE_CHARACTERS.length;
+    state.settings.allowedChars.size + " of " + STRIVE_CHARACTERS.length;
 
   allowedGrid.querySelectorAll(".char").forEach((tile) => {
     tile.setAttribute("aria-pressed",
