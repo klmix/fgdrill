@@ -9,7 +9,6 @@ const persistBox  = document.getElementById("persistInput");
 const persistRow  = document.getElementById("composerUtils");
 const exportBtn   = document.getElementById("exportButton");
 const posBtn      = document.getElementById("positionButton");
-const posLabel    = document.getElementById("positionLabel");
 const posMenu     = document.getElementById("positionMenu");
 const positionIcon= document.getElementById("positionIcon");
 const pickerBtn   = document.getElementById("pickerButton");
@@ -50,6 +49,16 @@ let BUTTONS;          // nach Laenge sortiert, laengste zuerst
 let TOKEN_RE;
 let ACTION_FORM;
 let COLOR_ROLES;
+
+// "drill" ist eine Sondermarke: solche Combos umgehen den Wiederholungsplan
+// und sind in jeder Sitzung dabei. Sie beschreibt keinen Dummy-Zustand,
+// taucht deshalb weder in der Sortierreihenfolge noch bei den uebrigen
+// Marken auf - in der Liste steht sie dort, wo sonst der Plan-Stand waere.
+// Erkannt wird sie am Namen ohne Zeichen, damit auch alte Ablagen ohne
+// Zielscheibe weiter greifen.
+const DRILL_STATE = "drill";
+
+const CATEGORY_DEFAULTS = [DRILL_STATE];
 
 // Zeichen, die in einem regulaeren Ausdruck etwas bedeuten, entschaerfen.
 // Notwendig, weil Schreibweisen wie "(CH)" woertlich gemeint sind.
@@ -139,8 +148,11 @@ function applyGameData(game) {
   GAME = game;
   CHARACTERS = game.characters;
   CHAR_BY_ID = new Map(game.characters.map((c) => [c.id, c]));
-  BASE_ROSTER = game.baseRoster;
-  STATE_DEFAULTS = game.states;
+  // Ohne Angabe steht das ganze Roster zur Wahl. Die Liste ist nur
+  // noetig, wenn ein Teil hinter einem Zusatzkauf liegt.
+  BASE_ROSTER = game.baseRoster ?? game.characters.map((c) => c.id);
+  // Die Drill-Marke der Spieldateien ist jetzt eine Kategorie.
+  STATE_DEFAULTS = (game.states ?? []).filter((n) => !istDrillName(n));
   SHARE_PREFIX = game.sharePrefix;
 
   const notation = buildNotation(game.notation);
@@ -181,8 +193,10 @@ const state = {
   // Freie Marken fuer Zusatzinfos. Die Vorgaben stehen in STATE_DEFAULTS,
   // alles Weitere legt der Benutzer selbst an.
   states: [],             // wird aus STATE_DEFAULTS gefuellt, siehe unten
+  categories: [],         // Kategorien; "drill" ist immer dabei
+  category: null,         // was die naechste Karte bekommt
+  groupByCategory: true,  // in der Liste nach Kategorie gruppieren?
   activeStates: new Set(),   // was die naechste Combo mitbekommt
-  tagFilter: new Set(),      // gezielte Runde: nur diese Marken, ohne Plan
   reviewed: {},              // Tagespensum je Charakter: { day, count }
 };
 
@@ -215,34 +229,44 @@ function tagLabel(name) {
   return splitTag(name).label;
 }
 
-// "drill" ist eine Sondermarke: solche Combos umgehen den Wiederholungsplan
-// und sind in jeder Sitzung dabei. Sie beschreibt keinen Dummy-Zustand,
-// taucht deshalb weder in der Sortierreihenfolge noch bei den uebrigen
-// Marken auf - in der Liste steht sie dort, wo sonst der Plan-Stand waere.
-// Erkannt wird sie am Namen ohne Zeichen, damit auch alte Ablagen ohne
-// Zielscheibe weiter greifen.
-const DRILL_STATE = "drill";
-
 // Einzige Quelle fuer die Vorgaben - sonst laufen Startliste und
 // Nachtrag beim Laden auseinander.
 state.states = [...STATE_DEFAULTS];
+state.categories = [...CATEGORY_DEFAULTS];
 
+
+// ============================================================
+//  Kategorien
+//  Eine Karte gehoert in hoechstens eine Kategorie. "drill" ist die
+//  erste und laeuft am Wiederholungsplan vorbei - frueher war das eine
+//  Marke, aber es beschreibt keinen Dummy-Zustand, sondern die Art der
+//  Karte. Deshalb ein eigenes Feld.
+// ============================================================
+
+function categoryOf(entry) {
+  return entry.category ?? null;
+}
+
+// Aus alten Ablagen: die Marke "drill" wird zur Kategorie.
+function migrateDrillState(entry) {
+  if (entry.category !== undefined) return;
+
+  const marke = (entry.states ?? []).find(istDrillName);
+  entry.category = marke ? DRILL_STATE : null;
+  if (marke) entry.states = (entry.states ?? []).filter((n) => !istDrillName(n));
+}
 
 function istDrillName(name) {
   return tagLabel(name).toLowerCase() === DRILL_STATE;
 }
 
 function isDrill(entry) {
-  return (entry.states ?? []).some(istDrillName);
+  return categoryOf(entry) === DRILL_STATE;
 }
 
-function drillTagName(entry) {
-  return (entry.states ?? []).find(istDrillName) ?? DRILL_STATE;
-}
-
-// Marken ohne die Sondermarke - alles, was wirklich eine Einstellung meint.
+// Marken beschreiben jetzt nur noch den Dummy - die Sondermarke ist weg.
 function visibleStates(entry) {
-  return (entry.states ?? []).filter((n) => !istDrillName(n));
+  return entry.states ?? [];
 }
 
 // Marken in der Reihenfolge stehen unter ihrem Namen, die beiden festen
@@ -285,7 +309,8 @@ function defaultSettings() {
 
     sr: {
       enabled: true,
-      perDay: 20,      // null = alle faelligen
+      perDay: 10,      // wie viele neue Sachen je Zeitraum; null = ohne Deckel
+      newDays: 1,      // Laenge des Zeitraums in Tagen
       maxDays: 7,      // Obergrenze fuer den Aufschub
     },
   };
@@ -301,8 +326,9 @@ function resetStateForGame() {
   state.expanded = new Set();
   state.editing = new Set();
   state.states = [...STATE_DEFAULTS];
+  state.categories = [...CATEGORY_DEFAULTS];
+  state.category = null;
   state.activeStates = new Set();
-  state.tagFilter = new Set();
   state.reviewed = {};
   state.settings = defaultSettings();
 }
@@ -422,11 +448,11 @@ function gradeLabel(g) {
 // Wie lange wuerde diese Note die Combo aufschieben? Wird sowohl fuer die
 // Beschriftung der Knoepfe als auch fuers Anwenden benutzt - zwei Rechnungen
 // koennten auseinanderlaufen.
-function previewInterval(entry, grade) {
+function previewInterval(entry, grade, teil = null) {
   if (!state.settings.sr.enabled || isDrill(entry)) return null;
   if (grade === "again") return 0;
 
-  const alt = entry.interval || 0;
+  const alt = srOf(entry, teil).interval || 0;
   const neu = alt <= 0 ? GRADE_FIRST[grade] : alt * GRADE_FACTOR[grade];
   return Math.min(neu, state.settings.sr.maxDays);
 }
@@ -440,14 +466,15 @@ function describeInterval(tage) {
   return String(gerundet) + (gerundet === 1 ? " day" : " days");
 }
 
-function applyGrade(entry, grade) {
-  entry.lastGrade = grade;          // auch ohne Plan fuer die Liste interessant
+function applyGrade(entry, grade, teil = null) {
+  const traeger = srOf(entry, teil);
+  traeger.lastGrade = grade;        // auch ohne Plan fuer die Liste interessant
 
-  const tage = previewInterval(entry, grade);
+  const tage = previewInterval(entry, grade, teil);
   if (tage === null) return;        // Plan aus oder Drill
 
-  entry.interval = tage;
-  entry.due = Date.now() + tage * TAG;
+  traeger.interval = tage;
+  traeger.due = Date.now() + tage * TAG;
 }
 
 // Gegen welche der erlaubten Charaktere funktioniert diese Combo?
@@ -506,17 +533,42 @@ function todayKey() {
   return d.getFullYear() + "-" + (d.getMonth() + 1) + "-" + d.getDate();
 }
 
-function reviewedToday(charId) {
-  const eintrag = state.reviewed[charId];
-  return eintrag && eintrag.day === todayKey() ? eintrag.count : 0;
+// Noch nie geuebt? Daran haengt der Deckel: was einmal dran war, kommt
+// danach immer, wenn es faellig ist.
+function isNewCard(entry, teil = null) {
+  const traeger = srOf(entry, teil);
+  return !traeger.lastGrade && !traeger.interval;
 }
 
-function noteReviewed(charId) {
-  const heute = todayKey();
-  const eintrag = state.reviewed[charId];
+function hasNewCards(entry) {
+  if (!hasParts(entry)) return isNewCard(entry);
+  return entry.parts.some((_, i) => isNewCard(entry, i)) || isNewCard(entry);
+}
 
-  if (!eintrag || eintrag.day !== heute) state.reviewed[charId] = { day: heute, count: 1 };
-  else eintrag.count++;
+// Wie viele neue Sachen sind im laufenden Zeitraum schon dazugekommen?
+// Der Zeitraum beginnt beim ersten neuen Stueck und laeuft ueber so viele
+// Tage, wie eingestellt sind.
+function newWindow(charId) {
+  const eintrag = state.reviewed[charId];
+  if (!eintrag || !eintrag.start) return null;
+
+  const tage = Math.max(1, state.settings.sr.newDays || 1);
+  const abgelaufen = Date.now() - eintrag.start >= tage * TAG;
+  return abgelaufen ? null : eintrag;
+}
+
+function newBudgetLeft(charId) {
+  const sr = state.settings.sr;
+  if (sr.perDay === null) return Infinity;
+
+  const fenster = newWindow(charId);
+  return Math.max(0, sr.perDay - (fenster ? fenster.count : 0));
+}
+
+function noteNewCard(charId) {
+  const fenster = newWindow(charId);
+  if (fenster) fenster.count++;
+  else state.reviewed[charId] = { start: Date.now(), count: 1 };
 }
 
 // Der Plan-Anteil: was heute laut Wiederholung ansteht.
@@ -527,40 +579,113 @@ function dueSelection(charId) {
 
   const jetzt = Date.now();
 
-  // Drill-Combos sind immer dabei und zaehlen nicht gegen das Tagespensum -
-  // sonst koennte der Deckel sie wegschneiden.
+  // Drill-Combos sind immer dabei und zaehlen nicht gegen den Deckel -
+  // sonst koennte er sie wegschneiden.
   const drill = aktiv.filter(isDrill);
+  // Bei zerschnittenen Combos zaehlt der frueheste Termin von Teil oder
+  // Ganzem - sonst laege die Combo still, bis das Ganze faellig waere.
+  const termin = (e) => {
+    const eigene = [e, ...(hasParts(e) ? e.parts : [])].map((x) => x.due || 0);
+    return Math.min(...eigene);
+  };
+
   const geplant = aktiv
     .filter((e) => !isDrill(e))
-    .filter((e) => !e.due || e.due <= jetzt)
-    .sort((a, b) => (a.due || 0) - (b.due || 0));   // laengst faellige zuerst
+    .filter((e) => termin(e) <= jetzt)
+    .sort((a, b) => termin(a) - termin(b));   // laengst faellige zuerst
 
-  const rest = sr.perDay ? Math.max(0, sr.perDay - reviewedToday(charId)) : Infinity;
-  return [...drill, ...geplant.slice(0, rest)];
+  // Was schon einmal dran war, kommt immer. Gedeckelt wird nur, wie
+  // schnell Neues in den Umlauf kommt - sonst waechst der Berg schneller,
+  // als man ihn abtragen kann.
+  const bekannt = geplant.filter((e) => !hasNewCards(e));
+  const neu = geplant.filter(hasNewCards);
+
+  return [...drill, ...bekannt, ...neu.slice(0, newBudgetLeft(charId))];
 }
 
 // Grinden heisst: ohne Plan ueben. Das ist der Fall bei einer gezielten
 // Runde, bei abgeschalteter Wiederholung, und wenn heute nichts ansteht.
 function isGrindMode(charId = state.character) {
-  if (state.tagFilter.size > 0) return true;
   if (!state.settings.sr.enabled) return true;
   return dueSelection(charId).length === 0;
 }
 
 // Was steht heute an? Erst die faelligsten, dann in Trainingsreihenfolge.
 // Rueckgabe sind Paare aus Combo und dem Gegner, auf den sie geuebt wird.
+// Ein Eintrag wird zu einer oder mehreren Karten: die Teile einzeln und,
+// sobald freigeschaltet, die Gesamtcombo. "alles" heisst gezielte Runde
+// oder Grinden - dann zaehlt Faelligkeit nicht.
+function cardsOf(entry, alles) {
+  const faellig = (traeger) =>
+    alles || !state.settings.sr.enabled || !traeger.due || traeger.due <= Date.now();
+
+  if (!hasParts(entry)) return [{ teil: null }];
+
+  const karten = entry.parts
+    .map((_, i) => i)
+    .filter((i) => faellig(entry.parts[i]))
+    .map((i) => ({ teil: i }));
+
+  if (wholeUnlocked(entry) && faellig(entry)) karten.push({ teil: null });
+
+  // Nichts faellig, aber die Combo ist trotzdem dran: dann das Ganze.
+  return karten.length ? karten : [{ teil: null }];
+}
+
+// Setzt die Karten in die fertig sortierte Schlange ein. Teile bleiben
+// beieinander, es sei denn der Eintrag erlaubt es anders - dann werden sie
+// unter die uebrigen Karten gestreut.
+function expandQueue(queue, alles) {
+  const fest = [];
+  const lose = [];
+
+  for (const posten of queue) {
+    const karten = cardsOf(posten.entry, alles);
+    const streuen = hasParts(posten.entry) && posten.entry.chain === false;
+
+    for (const karte of karten) {
+      const neu = { ...posten, teil: karte.teil };
+      // Die Gesamtcombo bleibt immer an ihrem Platz; nur Teile wandern.
+      (streuen && karte.teil !== null ? lose : fest).push(neu);
+    }
+  }
+
+  for (const posten of lose) {
+    fest.splice(Math.floor(Math.random() * (fest.length + 1)), 0, posten);
+  }
+  return fest;
+}
+
+// Wie viele Drills stehen fuer diesen Charakter an? Gezaehlt werden
+// Karten, nicht Eintraege: eine zerschnittene Combo bringt mehrere mit.
+// Das Tagespensum ist eingerechnet - die Zahl sagt also, was eine Runde
+// jetzt vorlegen wuerde.
+function dueCount(charId) {
+  return dueSelection(charId)
+    .reduce((summe, entry) => summe + cardsOf(entry, false).length, 0);
+}
+
+// Reihenfolge wie in der Combo-Liste: wer zuletzt dran war, steht vorn,
+// und wer noch nichts hat, kommt dahinter in der Reihenfolge des Rosters.
+function charactersByActivity() {
+  const mitDrills = [];
+  const ohne = [];
+
+  for (const char of CHARACTERS) {
+    (state.entries.some((e) => e.character === char.id) ? mitDrills : ohne).push(char);
+  }
+
+  mitDrills.sort((a, b) => lastTouched(b.id) - lastTouched(a.id));
+  return [...mitDrills, ...ohne];
+}
+
 function trainingQueue(charId) {
   const aktiv = state.entries.filter((e) => e.character === charId && !e.disabled);
 
-  // Gezielte Runde ueber das Zahnrad: alle Combos mit einer der gewaehlten
-  // Marken, ohne Ruecksicht auf Faelligkeit oder Tagespensum.
-  if (state.tagFilter.size > 0) {
-    return ordneRunde(aktiv.filter((e) =>
-      (e.states ?? []).some((n) => state.tagFilter.has(n))));
-  }
-
   const faellig = dueSelection(charId);
-  return ordneRunde(faellig.length > 0 ? faellig : aktiv);
+  return faellig.length > 0
+    ? expandQueue(ordneRunde(faellig), false)
+    : expandQueue(ordneRunde(aktiv), true);
 }
 
 // Sortieren und, wenn gewuenscht, auf Gegner aufteilen.
@@ -970,7 +1095,7 @@ function buildPositionMenu() {
 
 function syncPositionUi() {
   const active = POSITIONS.find((p) => p.id === state.position);
-  posLabel.textContent = active.label;
+  posBtn.title = active.label;
   positionIcon.innerHTML = stageIcon(active.dots, "picker-button__stage-svg");
 
   posMenu.querySelectorAll(".menu__item").forEach((item) => {
@@ -1070,7 +1195,7 @@ function render() {
 function buildWhoGrid() {
   whoGrid.innerHTML = "";
 
-  for (const char of CHARACTERS) {
+  for (const char of charactersByActivity()) {
     const tile = document.createElement("button");
     tile.type = "button";
     tile.className = "char";
@@ -1078,8 +1203,22 @@ function buildWhoGrid() {
     tile.title = char.name;
     tile.setAttribute("aria-label", char.name);
     tile.append(charIcon(char, "char__portrait"));
+
+    const faellig = dueCount(char.id);
+    if (faellig > 0) tile.append(dueBadge(faellig));
+
     whoGrid.append(tile);
   }
+}
+
+// Die Zahl im Kreis. Nur wo etwas ansteht - eine Null waere kein Hinweis,
+// sondern nur ein Fleck mehr.
+function dueBadge(zahl) {
+  const kreis = document.createElement("span");
+  kreis.className = "due-badge";
+  kreis.textContent = zahl > 99 ? "99+" : String(zahl);
+  kreis.title = zahl + (zahl === 1 ? " item due" : " items due");
+  return kreis;
 }
 
 function syncWho() {
@@ -1259,14 +1398,16 @@ function buildStateList() {
     item.prepend(tagMarker(name, "menu__dot"), label);
 
     // Vorgegebene States bleiben, selbst angelegte kann man wieder loswerden.
+    // Den Platz fuer das x bekommt jede Zeile, sonst rutscht der Haken bei
+    // eigenen Marken um dessen Breite nach links.
+    const drop = document.createElement("span");
+    drop.className = "menu__drop";
     if (!STATE_DEFAULTS.includes(name)) {
-      const drop = document.createElement("span");
-      drop.className = "menu__drop";
       drop.dataset.dropState = name;
       drop.title = "Remove state";
       drop.textContent = "×";
-      item.append(drop);
     }
+    item.append(drop);
 
     stateList.append(item);
   }
@@ -1276,7 +1417,7 @@ function syncStates() {
   const gewaehlt = [...state.activeStates];
 
   stateLabel.textContent =
-    gewaehlt.length === 0 ? "Special States"
+    gewaehlt.length === 0 ? "State"
     : gewaehlt.length === 1 ? gewaehlt[0]
     : gewaehlt.length + " States";
 
@@ -1327,9 +1468,129 @@ stateAdd.addEventListener("submit", (e) => {
   syncStates();
 });
 
+// --- Kategorie -----------------------------------------------
+const categoryBtn = document.getElementById("categoryButton");
+const categoryPanel = document.getElementById("categoryPanel");
+const categoryList = document.getElementById("categoryList");
+const categoryAdd = document.getElementById("categoryAdd");
+const categoryInput = document.getElementById("categoryInput");
+
+// Das Ordnersymbol, solange keine Kategorie gewaehlt ist.
+function CATEGORY_ICON() {
+  const huelle = document.createElement("span");
+  huelle.innerHTML = CATEGORY_SVG;
+  const svg = huelle.firstElementChild;
+  svg.setAttribute("class", "picker-button__icon");
+  return svg;
+}
+
+function buildCategoryList() {
+  categoryList.innerHTML = "";
+
+  // Kein Eintrag fuer "ohne": ein zweiter Klick auf die gewaehlte
+  // Kategorie nimmt sie wieder weg.
+  for (const name of state.categories) {
+    const item = document.createElement("button");
+    item.type = "button";
+    item.className = "menu__item";
+    item.dataset.category = name ?? "";
+    item.setAttribute("role", "menuitemradio");
+
+    const label = document.createElement("span");
+    label.className = "menu__label";
+    label.textContent = name ? categoryLabelOf(name) : "No category";
+
+    item.innerHTML = STATE_CHECK_SVG;
+    item.prepend(tagMarker(name, "menu__dot"), label);
+
+    // Eigene Kategorien lassen sich wieder loswerden, "drill" nicht.
+    if (!CATEGORY_DEFAULTS.includes(name)) {
+      const drop = document.createElement("span");
+      drop.className = "menu__drop";
+      drop.dataset.dropCategory = name;
+      drop.title = "Remove category";
+      drop.textContent = "×";
+      item.append(drop);
+    }
+
+    categoryList.append(item);
+  }
+}
+
+function categoryLabelOf(name) {
+  return name.charAt(0).toUpperCase() + name.slice(1);
+}
+
+function syncCategory() {
+  // Statt des Ordners steht hier das Zeichen der Kategorie - ihr Emoji,
+  // sonst ihr Farbpunkt. Der Grund bleibt neutral, nur der Rand zeigt an,
+  // dass etwas gewaehlt ist.
+  const symbol = categoryBtn.querySelector(".picker-button__icon, .menu__dot");
+  if (state.category) {
+    const marker = tagMarker(state.category, "menu__dot picker-button__mark");
+    symbol.replaceWith(marker);
+    categoryBtn.style.borderColor = tagColors(state.category).dot;
+  } else {
+    symbol.replaceWith(CATEGORY_ICON());
+    categoryBtn.style.borderColor = "";
+  }
+
+  categoryBtn.classList.toggle("is-set", !!state.category);
+  categoryBtn.title = state.category
+    ? "Category: " + categoryLabelOf(state.category)
+    : "No category";
+
+  categoryList.querySelectorAll("[data-category]").forEach((item) => {
+    const an = (item.dataset.category || null) === state.category;
+    item.classList.toggle("is-active", an);
+    item.setAttribute("aria-checked", String(an));
+  });
+}
+
+categoryList.addEventListener("click", (e) => {
+  const weg = e.target.closest("[data-drop-category]")?.dataset.dropCategory;
+  if (weg) {
+    state.categories = state.categories.filter((n) => n !== weg);
+    if (state.category === weg) state.category = null;
+    for (const eintrag of state.entries) {
+      if (eintrag.category === weg) eintrag.category = null;
+    }
+    buildCategoryList();
+    syncCategory();
+    renderEntries();
+    return;
+  }
+
+  const item = e.target.closest("[data-category]");
+  if (!item) return;
+
+  // Noch einmal auf dieselbe: Kategorie wieder weg.
+  const gewaehlt = item.dataset.category;
+  state.category = state.category === gewaehlt ? null : gewaehlt;
+  syncCategory();
+});
+
+categoryAdd.addEventListener("submit", (e) => {
+  e.preventDefault();
+
+  const name = categoryInput.value.trim();
+  if (!name) return;
+
+  const schonDa = state.categories.find((n) => n.toLowerCase() === name.toLowerCase());
+  const nutzen = schonDa ?? name;
+  if (!schonDa) state.categories.push(name);
+
+  state.category = nutzen;
+  categoryInput.value = "";
+  buildCategoryList();
+  syncCategory();
+  persist();
+});
+
 // --- Menues anmelden -----------------------------------------
 registerPopover(pickerBtn, panel);   // gegen welche Charaktere
 registerPopover(stateBtn, statePanel);            // Special States
+registerPopover(categoryBtn, categoryPanel);      // Kategorie
 // Waehrend des Trainings steht der Charakter fest.
 const whoPop = registerPopover(whoBtn, whoPanel, () => !state.training);
 
@@ -1337,7 +1598,24 @@ const whoPop = registerPopover(whoBtn, whoPanel, () => !state.training);
 const gameBtn = document.getElementById("gameButton");
 const gamePanel = document.getElementById("gamePanel");
 const gameLabel = document.getElementById("gameLabel");
-const gameTile = document.getElementById("gameTile");
+let gameTile = document.getElementById("gameTile");
+
+// Die Kachel eines Spiels: sein Symbol, sonst das Kuerzel. Eigene Spiele
+// duerfen eine Adresse angeben - so bleibt die Definition reiner Text.
+function gameTileFor(spiel, klasse) {
+  const kachel = document.createElement("span");
+  kachel.className = klasse;
+  kachel.textContent = spiel.short ?? "";
+
+  const quelle = spiel.icon ?? "assets/games/" + spiel.id + ".png";
+  const bild = document.createElement("img");
+  bild.src = quelle;
+  bild.alt = "";
+  bild.addEventListener("error", () => bild.remove());
+  kachel.append(bild);
+
+  return kachel;
+}
 
 function buildGameList() {
   gamePanel.innerHTML = "";
@@ -1349,9 +1627,7 @@ function buildGameList() {
     item.dataset.game = spiel.id;
     item.setAttribute("role", "menuitemradio");
 
-    const kachel = document.createElement("span");
-    kachel.className = "game-tile";
-    kachel.textContent = spiel.short;
+    const kachel = gameTileFor(spiel, "game-tile");
 
     const label = document.createElement("span");
     label.className = "menu__label";
@@ -1361,11 +1637,20 @@ function buildGameList() {
     item.prepend(kachel, label);
     gamePanel.append(item);
   }
+
+  // Neu anlegen geht immer; steht ein eigenes Spiel offen, bearbeitet es.
+  const neu = document.createElement("button");
+  neu.type = "button";
+  neu.className = "menu__item menu__item--new";
+  neu.dataset.gameNew = "1";
+  neu.textContent = "+ Your own game ...";
+  gamePanel.append(neu);
 }
 
 function syncGameUi() {
   gameLabel.textContent = GAME.name;
-  gameTile.textContent = GAME.short;
+  gameTile.replaceWith(gameTileFor(GAME, "game-button__tile"));
+  gameTile = document.querySelector(".game-button__tile");
   input.placeholder = GAME.example
     ? "Enter a combo, e.g. " + GAME.example
     : "Enter a combo";
@@ -1381,6 +1666,12 @@ function syncGameUi() {
 const gamePop = registerPopover(gameBtn, gamePanel, () => !state.training);
 
 gamePanel.addEventListener("click", (e) => {
+  if (e.target.closest("[data-game-new]")) {
+    closePopover(gamePop);
+    openGameEditor(GAME.custom ? GAME : null);
+    return;
+  }
+
   const id = e.target.closest("[data-game]")?.dataset.game;
   if (!id) return;
 
@@ -1389,6 +1680,129 @@ gamePanel.addEventListener("click", (e) => {
 });
 
 buildGameList();
+
+// --- Eigenes Spiel -------------------------------------------
+const gameDlg = document.getElementById("gameDialog");
+const gameSource = document.getElementById("gameSource");
+const gameError = document.getElementById("gameError");
+
+// Vorlage fuer ein neues Spiel. Bewusst knapp: was fehlt, hat eine
+// brauchbare Vorgabe, und laenger als noetig schreckt nur ab.
+function gameTemplate() {
+  return {
+    id: "myfg",
+    name: "My Fighting Game",
+    short: "MY",
+    sharePrefix: "MYFG1-",
+    example: "2A > 5B > 236C",
+    characters: [
+      { id: "alpha", name: "Alpha", short: "AL", icon: "https://example.com/alpha.png" },
+      { id: "beta", name: "Beta", short: "BE" },
+    ],
+    baseRoster: ["alpha", "beta"],
+    states: ["jumping", "crouching", "🎯 drill"],
+    notation: {
+      buttons: [
+        { id: "A", match: "A", label: "Light", color: "#60a5fa", sample: "5A", kinds: "A, 2A, j.A" },
+        { id: "B", match: "B", label: "Medium", color: "#fbbf24", sample: "5B", kinds: "B, 2B, j.B" },
+        { id: "C", match: "C", label: "Heavy", color: "#f87171", sample: "5C", kinds: "C, 2C, j.C" },
+      ],
+      prefixes: ["dl", "j", "c", "f"],
+      directions: true,
+      cancels: { forms: ["RC"], label: "Cancels", sample: "RC", kinds: "RC", color: "#a78bfa" },
+      counter: { forms: ["CH"], label: "Counter Hit", sample: "CH", kinds: "CH", color: "#ff7300" },
+      actions: { label: "Movement", sample: "66", color: "#22d3ee",
+                 forms: { dash: "dash", "66": "66", "44": "44" } },
+    },
+    theme: { "--accent": "#7c5cff", "--accent-hover": "#9077ff",
+             "--accent-soft": "#1a1240", "--send-bg": "#7c5cff",
+             "--send-bg-hover": "#9077ff", "--send-fg": "#ffffff" },
+  };
+}
+
+function customGames() {
+  try {
+    const liste = JSON.parse(localStorage.getItem(CUSTOM_KEY) ?? "[]");
+    return Array.isArray(liste) ? liste : [];
+  } catch {
+    return [];
+  }
+}
+
+function openGameEditor(spiel) {
+  gameSource.value = JSON.stringify(spiel ?? gameTemplate(), null, 2);
+  gameError.hidden = true;
+  document.getElementById("gameDrop").hidden = !spiel?.custom;
+  gameDlg.showModal();
+  gameSource.focus();
+}
+
+document.getElementById("gameCancel").addEventListener("click", () => gameDlg.close());
+
+document.getElementById("gameSave").addEventListener("click", () => {
+  let entwurf;
+  try {
+    entwurf = JSON.parse(gameSource.value);
+  } catch (err) {
+    gameError.hidden = false;
+    gameError.textContent = "Not valid JSON: " + err.message;
+    return;
+  }
+
+  const problem = checkGame(entwurf);
+  if (problem) {
+    gameError.hidden = false;
+    gameError.textContent = problem;
+    return;
+  }
+
+  // Die eingebauten Spiele lassen sich nicht ueberschreiben - sonst waere
+  // eine Sammlung nach einem Tippfehler nicht mehr zuzuordnen.
+  const eingebaut = GAME_BY_ID.get(entwurf.id);
+  if (eingebaut && !eingebaut.custom) {
+    gameError.hidden = false;
+    gameError.textContent = "That id belongs to a built-in game. Pick another.";
+    return;
+  }
+
+  const liste = customGames().filter((g) => g.id !== entwurf.id);
+  liste.push(entwurf);
+  writeJson(CUSTOM_KEY, liste);
+
+  registerGame(entwurf);
+  buildGameList();
+  gameDlg.close();
+  switchGame(entwurf.id);
+  showNotice(entwurf.name + " saved.");
+});
+
+document.getElementById("gameDrop").addEventListener("click", async () => {
+  const spiel = GAME_BY_ID.get(JSON.parse(gameSource.value || "{}").id);
+  if (!spiel?.custom) return;
+
+  const ja = await askDialog({
+    title: "Delete " + spiel.name + "?",
+    text: "The game and everything you saved under it will be removed.",
+    buttons: [
+      { value: true, label: "Delete", kind: "danger" },
+      { value: null, label: "Cancel", kind: "quiet" },
+    ],
+  });
+  if (!ja) return;
+
+  writeJson(CUSTOM_KEY, customGames().filter((g) => g.id !== spiel.id));
+  try {
+    localStorage.removeItem(storageKey(spiel.id));
+  } catch { /* ohne Ablage gibt es nichts zu raeumen */ }
+
+  const i = GAMES.indexOf(spiel);
+  if (i >= 0) GAMES.splice(i, 1);
+  GAME_BY_ID.delete(spiel.id);
+
+  gameDlg.close();
+  buildGameList();
+  switchGame(GAMES[0].id);
+});
 
 // --- Alle / Keine --------------------------------------------
 tools.addEventListener("click", (e) => {
@@ -1500,6 +1914,40 @@ function positionSelect(entry) {
   }
 
   sel.addEventListener("change", () => { entry.position = sel.value; touch(entry); });
+  return sel;
+}
+
+// Kategorie eines Eintrags. Wie bei der Position ein schmales Auswahlfeld -
+// in einer Zeile voller Karten ist dafuer kein Platz fuer mehr.
+function categorySelect(entry) {
+  const sel = document.createElement("select");
+  sel.className = "entry__position entry__category";
+  sel.title = "Category";
+
+  const leer = document.createElement("option");
+  leer.value = "";
+  leer.textContent = "No category";
+  leer.selected = !entry.category;
+  sel.append(leer);
+
+  // Auch eine Kategorie zeigen, die es nicht mehr in der Liste gibt -
+  // sonst faellt sie beim ersten Bearbeiten unbemerkt weg.
+  const alle = [...new Set([...state.categories, entry.category].filter(Boolean))];
+  for (const name of alle) {
+    const opt = document.createElement("option");
+    opt.value = name;
+    opt.textContent = categoryLabelOf(name);
+    opt.selected = name === entry.category;
+    sel.append(opt);
+  }
+
+  sel.addEventListener("change", () => {
+    entry.category = sel.value || null;
+    touch(entry);
+    persist();
+    renderEntries();
+  });
+
   return sel;
 }
 
@@ -1685,6 +2133,15 @@ function commentField(entry) {
   return feld;
 }
 
+// Eine Liste von Karten; mehrfach gebraucht, weil die Kategorien je einen
+// eigenen Rahmen um ihre Karten bekommen.
+function entryList2(entries, bearbeiten) {
+  const list = document.createElement("ol");
+  list.className = "group__list";
+  entries.forEach((entry) => list.append(buildEntry(entry, bearbeiten)));
+  return list;
+}
+
 function buildEntry(entry, bearbeiten) {
   const item = document.createElement("li");
   item.className = "entry" + (bearbeiten ? " is-editing" : "") +
@@ -1713,7 +2170,34 @@ function buildEntry(entry, bearbeiten) {
 
     const combo = document.createElement("span");
     combo.className = "entry__combo";
-    combo.innerHTML = tokenize(entry.text);   // gleiche Faerbung wie im Eingabefeld
+
+    if (hasParts(entry)) {
+      // Die Gesamtcombo bleibt lesbar; die Schnitte sind nur markiert, und
+      // unter jedem Teil zeigt ein Balken, wie sicher er sitzt.
+      entry.parts.forEach((teil, i) => {
+        if (i > 0) {
+          // Das echte Trennzeichen bleibt stehen - gestrichelt umrandet
+          // als Schnitt, aber weiter als Gatling oder Link zu lesen.
+          const fuge = document.createElement("span");
+          fuge.className = "entry__cut";
+          fuge.textContent = partJoin(entry, i) || ">";
+          fuge.title = "Cut - sub combo " + (i + 1) + " starts here";
+          combo.append(fuge);
+        }
+
+        const stueck = document.createElement("span");
+        stueck.className = "entry__part" +
+          (teil.lastGrade ? " entry__part--" + teil.lastGrade : "");
+        stueck.innerHTML = tokenize(teil.text);
+        stueck.title = "Part " + (i + 1) + ": " +
+          (teil.lastGrade ? gradeLabel(teil.lastGrade) : "not trained yet") +
+          (teil.due ? " · " + describeDue(teil) : "");
+        combo.append(stueck);
+      });
+    } else {
+      combo.innerHTML = tokenize(entry.text);   // gleiche Faerbung wie im Feld
+    }
+
     text.append(combo);
 
     visibleStates(entry).forEach((name) => {
@@ -1732,6 +2216,24 @@ function buildEntry(entry, bearbeiten) {
       links.append(notiz);
     }
 
+    // Die Notizen der Teile darunter, in ihrer Reihenfolge und nummeriert.
+    if (hasParts(entry)) {
+      entry.parts.forEach((teil, i) => {
+        if (!teil.comment) return;
+
+        const notiz = document.createElement("p");
+        notiz.className = "entry__comment entry__comment--part";
+
+        const nummer = document.createElement("span");
+        nummer.className = "entry__part-no";
+        nummer.textContent = i + 1;
+
+        notiz.append(nummer);
+        notiz.insertAdjacentHTML("beforeend", linkify(teil.comment));
+        links.append(notiz);
+      });
+    }
+
     const icons = iconsFor(entry.characters);
     if (icons && icons.chars.length) {
       const chars = document.createElement("div");
@@ -1748,7 +2250,7 @@ function buildEntry(entry, bearbeiten) {
   meta.className = "entry__meta";
 
   if (bearbeiten) {
-    meta.append(positionSelect(entry), entryCharPicker(entry));
+    meta.append(positionSelect(entry), categorySelect(entry), entryCharPicker(entry));
   } else {
     // Position und Marken stehen jetzt links bei der Combo; hier bleibt
     // nur der Stand aus dem Training.
@@ -1756,14 +2258,6 @@ function buildEntry(entry, bearbeiten) {
     // Getrennte Kinder der Spalte ergaeben sonst eine zweite Zeile.
     const stand = document.createElement("span");
     stand.className = "entry__sr";
-
-    if (isDrill(entry)) {
-      const drill = document.createElement("span");
-      drill.className = "entry__drill";
-      drill.textContent = drillTagName(entry);
-      drill.title = "Drill: skips spaced repetition";
-      stand.append(drill);
-    }
 
     if (entry.lastGrade) {
       const n = document.createElement("span");
@@ -1863,6 +2357,12 @@ const SHARE_SVG =
   '<circle cx="18" cy="19" r="2.6"/>' +
   '<path d="m8.3 10.8 7.4-4.3M8.3 13.2l7.4 4.3"/></svg>';
 
+const CATEGORY_SVG =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" ' +
+  'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+  '<path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/>' +
+  "</svg>";
+
 const PENCIL_SVG =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" ' +
   'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
@@ -1891,14 +2391,16 @@ function buildGroup(char, entries) {
 
   const count = document.createElement("span");
   count.className = "group__count";
-  count.textContent = entries.length + (entries.length === 1 ? " combo" : " combos");
+  // "Drill" ist unser Wort fuer die Sache, nicht das des Benutzers -
+  // in der Liste steht deshalb die neutrale Zahl.
+  count.textContent = entries.length + (entries.length === 1 ? " item" : " items");
 
   // Bearbeiten gilt nur fuer diesen Charakter.
   const edit = document.createElement("button");
   edit.type = "button";
   edit.className = "group__edit" + (bearbeiten ? " is-active" : "");
   edit.dataset.edit = char.id;
-  edit.title = bearbeiten ? "Done editing" : "Edit combos";
+  edit.title = bearbeiten ? "Done editing" : "Edit this character's list";
   edit.setAttribute("aria-pressed", String(bearbeiten));
   edit.innerHTML = PENCIL_SVG;
 
@@ -1906,11 +2408,26 @@ function buildGroup(char, entries) {
   teilen.type = "button";
   teilen.className = "group__edit";
   teilen.dataset.share = char.id;
-  teilen.title = "Share this character's combos as a code";
+  teilen.title = "Share this character's list as a code";
   teilen.setAttribute("aria-label", "Share");
   teilen.innerHTML = SHARE_SVG;
 
-  head.append(name, count, teilen, edit);
+  // Erst der Name, dann die Zahl der Karten, dann was davon ansteht.
+  const faellig = dueCount(char.id);
+  head.append(name, count);
+  if (faellig > 0) head.append(dueBadge(faellig));
+  // Umschalter: Kategorien zeigen oder alles in einer Reihe.
+  const gruppieren = document.createElement("button");
+  gruppieren.type = "button";
+  gruppieren.className = "group__edit" + (state.groupByCategory ? " is-active" : "");
+  gruppieren.dataset.groupToggle = "1";
+  gruppieren.title = state.groupByCategory
+    ? "Categories on - click to show one plain list"
+    : "Categories off - click to group by category";
+  gruppieren.setAttribute("aria-pressed", String(state.groupByCategory));
+  gruppieren.innerHTML = CATEGORY_SVG;
+
+  head.append(gruppieren, teilen, edit);
 
   // Sortiert nach Position, Startmove, Counter Hit und zuletzt Alter.
   // Beim Bearbeiten wird immer alles gezeigt.
@@ -1918,11 +2435,40 @@ function buildGroup(char, entries) {
   const offen = bearbeiten || state.expanded.has(char.id);
   const sichtbar = offen ? neueste : neueste.slice(0, VISIBLE_PER_CHARACTER);
 
-  const list = document.createElement("ol");
-  list.className = "group__list";
-  sichtbar.forEach((entry) => list.append(buildEntry(entry, bearbeiten)));
+  group.append(head);
 
-  group.append(head, list);
+  if (state.groupByCategory) {
+    // Karten ohne Kategorie stehen wie bisher; die uebrigen bekommen je
+    // Kategorie einen farbigen Rahmen. Der Einzug bleibt derselbe, damit
+    // alle Combos an derselben Stelle beginnen.
+    // Die Kategorien stehen oben - sie sind das, wonach man sucht.
+    const nach = new Map();
+    for (const entry of sichtbar) {
+      const k = categoryOf(entry);
+      if (!k) continue;
+      if (!nach.has(k)) nach.set(k, []);
+      nach.get(k).push(entry);
+    }
+
+    for (const [name, teil] of nach) {
+      const rahmen = document.createElement("section");
+      rahmen.className = "category";
+      // Der Rahmen traegt die Farbe allein, deshalb die kraeftige Fassung.
+      rahmen.style.setProperty("--category-color", tagColors(name).fg);
+
+      const titel = document.createElement("span");
+      titel.className = "category__title";
+      titel.textContent = categoryLabelOf(name);
+
+      rahmen.append(titel, entryList2(teil, bearbeiten));
+      group.append(rahmen);
+    }
+
+    const ohne = sichtbar.filter((e) => !categoryOf(e));
+    if (ohne.length) group.append(entryList2(ohne, bearbeiten));
+  } else {
+    group.append(entryList2(sichtbar, bearbeiten));
+  }
 
   const versteckt = neueste.length - VISIBLE_PER_CHARACTER;
   if (versteckt > 0 && !bearbeiten) {
@@ -2093,6 +2639,12 @@ entryList.addEventListener("click", (e) => {
   }
 
   // Bearbeiten an- und ausschalten - gilt nur fuer diesen Charakter.
+  if (e.target.closest("[data-group-toggle]")) {
+    state.groupByCategory = !state.groupByCategory;
+    renderEntries();
+    return;
+  }
+
   const stift = e.target.closest("[data-edit]")?.dataset.edit;
   if (stift) {
     closeEntryPicker(false);
@@ -2157,20 +2709,227 @@ function newId() {
   return String(Date.now()) + Math.random().toString(36).slice(2, 7);
 }
 
+// ============================================================
+//  Zerschnittene Combos
+//  Lange Combos uebt man in Stuecken, die fuer sich funktionieren.
+//  Ein Eintrag traegt dann zusaetzlich seine Teile; jeder Teil hat einen
+//  eigenen Wiederholungsplan, die Gesamtcombo behaelt ihren.
+// ============================================================
+function hasParts(entry) {
+  return Array.isArray(entry.parts) && entry.parts.length > 1;
+}
+
+// Traeger des Plans: der Teil oder der Eintrag selbst.
+function srOf(entry, teil) {
+  return teil == null ? entry : entry.parts[teil];
+}
+
+// Combos, die vor dieser Aenderung zerschnitten wurden, haben das
+// Trennzeichen noch nicht gespeichert. Es laesst sich aus dem Gesamttext
+// zurueckholen: zwischen zwei Teilen steht genau eine Fuge.
+function partJoin(entry, i) {
+  const teil = entry.parts[i];
+  if (typeof teil.join === "string") return teil.join;
+  if (i === 0) return "";
+
+  let ab = 0;
+  for (let k = 0; k < i; k++) {
+    const pos = entry.text.indexOf(entry.parts[k].text, ab);
+    if (pos < 0) return ">";
+    ab = pos + entry.parts[k].text.length;
+  }
+
+  const start = entry.text.indexOf(teil.text, ab);
+  const treffer = (start < 0 ? "" : entry.text.slice(ab, start)).match(/[>,~]/);
+  return treffer ? treffer[0] : ">";
+}
+
+function cardText(entry, teil) {
+  return teil == null ? entry.text : entry.parts[teil].text;
+}
+
+// Marken gelten fuer den ganzen Eintrag; ein Teil kann eigene haben.
+function cardStates(entry, teil) {
+  if (teil == null) return entry.states ?? [];
+  return entry.parts[teil].states ?? entry.states ?? [];
+}
+
+// Gilt ein Teil als sicher? Ab "good" - "hard" heisst, es wackelt noch.
+const SICHER = new Set(["good", "easy"]);
+
+function partsLearned(entry) {
+  return entry.parts.every((t) => SICHER.has(t.lastGrade));
+}
+
+// Steht die Gesamtcombo schon zur Wahl?
+function wholeUnlocked(entry) {
+  if (!hasParts(entry)) return true;
+  return entry.unlock === "always" || partsLearned(entry);
+}
+
+// --- Schnittansicht ------------------------------------------
+// Geschnitten wird an den Fugen der Notation - dort, wo ohnehin ein
+// Trennzeichen steht. Innerhalb eines Terms zu schneiden ergaebe keine
+// Combo, die man fuer sich ueben koennte.
+const editorBox = document.getElementById("editorBox");
+const cutPane = document.getElementById("cutPane");
+const cutText = document.getElementById("cutText");
+const cutBtn = document.getElementById("cutButton");
+const cutTags = document.getElementById("cutTags");
+const cutChain = document.getElementById("cutChain");
+const cutUnlock = document.getElementById("cutUnlock");
+
+let cutStellen = new Set();     // Zeichenpositionen, an denen getrennt wird
+
+// Zerlegt den Text in Stuecke und die Fugen dazwischen. Eine Fuge ist ein
+// Trennzeichen mit Text davor und dahinter.
+function cutJoints(text) {
+  const fugen = [];
+  TOKEN_RE.lastIndex = 0;
+  let m;
+
+  while ((m = TOKEN_RE.exec(text)) !== null) {
+    if (!m[7]) continue;                       // nur Trennzeichen
+    if (!">,~".includes(m[0])) continue;       // Klammern sind keine Fugen
+    if (!text.slice(0, m.index).trim()) continue;
+    if (!text.slice(m.index + m[0].length).trim()) continue;
+    fugen.push({ von: m.index, bis: m.index + m[0].length, zeichen: m[0] });
+  }
+  return fugen;
+}
+
+// Die Teile, wie sie nach den gesetzten Schnitten entstehen. Das
+// Trennzeichen der Fuge wird mitgefuehrt: ">" ist ein Gatling, "," ein
+// Link - das ist ein Unterschied, den der Schnitt nicht verschlucken darf.
+function cutParts(text, stellen) {
+  const punkte = [...stellen].sort((a, b) => a - b);
+  const roh = [];
+  let ab = 0;
+
+  for (const p of punkte) {
+    roh.push(text.slice(ab, p));
+    ab = p;
+  }
+  roh.push(text.slice(ab));
+
+  return roh
+    .map((stueck) => {
+      const treffer = stueck.match(/^\s*([>,~])\s*/);
+      return {
+        join: treffer ? treffer[1] : "",
+        text: (treffer ? stueck.slice(treffer[0].length) : stueck).trim(),
+      };
+    })
+    .filter((t) => t.text);
+}
+
+function renderCut() {
+  const text = input.value;
+  cutText.innerHTML = "";
+
+  const fugen = cutJoints(text);
+  let ab = 0;
+
+  const stueck = (von, bis) => {
+    const roh = text.slice(von, bis);
+    if (!roh) return;
+    const span = document.createElement("span");
+    span.className = "cut__piece";
+    span.innerHTML = tokenize(roh);
+    cutText.append(span);
+  };
+
+  for (const fuge of fugen) {
+    stueck(ab, fuge.von);
+
+    const knopf = document.createElement("button");
+    knopf.type = "button";
+    knopf.className = "cut__joint" + (cutStellen.has(fuge.von) ? " is-cut" : "");
+    knopf.dataset.joint = String(fuge.von);
+    knopf.textContent = fuge.zeichen;
+    knopf.title = cutStellen.has(fuge.von) ? "Join again" : "Cut here";
+    cutText.append(knopf);
+
+    ab = fuge.bis;
+  }
+  stueck(ab, text.length);
+
+  const teile = cutParts(text, cutStellen);
+  cutPane.classList.toggle("is-split", teile.length > 1);
+}
+
+cutText.addEventListener("click", (e) => {
+  const stelle = e.target.closest("[data-joint]")?.dataset.joint;
+  if (stelle === undefined) return;
+
+  const n = Number(stelle);
+  cutStellen.has(n) ? cutStellen.delete(n) : cutStellen.add(n);
+  renderCut();
+  updateFlipHeight(true);
+});
+
+function setCutMode(an) {
+  if (an && !input.value.trim()) { input.focus(); return; }
+
+  cutPane.hidden = !an;
+  editorBox.hidden = an;
+  cutBtn.classList.toggle("is-active", an);
+  cutBtn.setAttribute("aria-pressed", String(an));
+  cutBtn.title = an ? "Back to typing" : "Split into parts";
+
+  if (an) {
+    cutStellen = new Set();
+    renderCut();
+  }
+  updateFlipHeight(true);
+}
+
+cutBtn.addEventListener("click", () => setCutMode(cutPane.hidden));
+
+function inCutMode() {
+  return !cutPane.hidden;
+}
+
+// In der Schnittansicht liegt der Zeiger nicht mehr im Textfeld - die
+// Eingabetaste muss deshalb hier abgefangen werden.
+document.addEventListener("keydown", (e) => {
+  if (!inCutMode()) return;
+
+  if (e.key === "Enter") { e.preventDefault(); saveCombo(); }
+  else if (e.key === "Escape") { e.preventDefault(); setCutMode(false); }
+});
+
 function saveCombo() {
   const text = input.value.trim();
   if (!text) { input.focus(); return; }
 
-  state.entries.push({
+  const eintrag = {
     id: newId(),
     text,
     character: state.character,          // fuer welchen Charakter
     characters: currentCharacters(),     // gegen welche Charaktere
     position: state.position,
     states: [...state.activeStates],
+    category: state.category,
     comment: comment.value.trim(),
     touched: Date.now(),
-  });
+  };
+
+  // Aus der Schnittansicht kommen die Teile gleich mit.
+  if (inCutMode()) {
+    const teile = cutParts(text, cutStellen);
+    if (teile.length > 1) {
+      const marken = cutTags.value === "all" ? [...state.activeStates] : [];
+      eintrag.parts = teile.map((t) => ({
+        text: t.text, join: t.join, comment: "", states: marken,
+      }));
+      eintrag.chain = cutChain.value === "1";
+      eintrag.unlock = cutUnlock.value;
+    }
+    setCutMode(false);
+  }
+
+  state.entries.push(eintrag);
 
   // Mit "Persistent input" bleibt alles stehen - praktisch, wenn man
   // Varianten derselben Combo in derselben Lage hintereinander eingibt.
@@ -2194,6 +2953,8 @@ function resetComposer() {
 
   state.selected = new Set(CHARACTERS.map((c) => c.id));
   state.activeStates.clear();
+  // Die Kategorie bleibt stehen: wer sie einmal gesetzt hat, legt
+  // meist mehrere Karten derselben Art hintereinander an.
   render();
   syncStates();
 }
@@ -2253,6 +3014,7 @@ const drillDoneRate = document.getElementById("drillDoneRate");
 const doneList      = document.getElementById("doneList");
 const settingsBtn   = document.getElementById("settingsButton");
 const drillChars    = document.getElementById("drillChars");
+const drillPart     = document.getElementById("drillPart");
 const drillStateEdit= document.getElementById("drillStateEdit");
 const drillCharEdit = document.getElementById("drillCharEdit");
 const drillGrades   = document.getElementById("drillGrades");
@@ -2268,22 +3030,19 @@ function syncDojo() {
   const hatCombos = state.entries.some((e) => e.character === state.character);
   const anstehend = trainingQueue(state.character).length;
   const grind = isGrindMode();
-  const marken = [...state.tagFilter].map(tagLabel).join(", ");
 
   dojoBtn.disabled = anstehend === 0;
   dojoBtn.classList.toggle("is-grind", grind && anstehend > 0);
   dojoLabel.textContent = grind ? "Start grinding" : "Start training";
 
   dojoBtn.title = !hatCombos
-    ? "No combos saved for " + name + " yet"
+    ? "Nothing saved for " + name + " yet"
     : anstehend === 0
-      ? (marken ? "No combos tagged " + marken : "No combos to train for " + name)
-      : marken
-        ? "Focused set: " + marken + " (" + anstehend + "), nothing is scheduled"
-        : grind
-          ? "Nothing due - grind all " + anstehend + " combos for " + name +
-            " (this does not change the schedule)"
-          : "Start training with " + name + " (" + anstehend + ")";
+      ? "Nothing to train for " + name
+      : grind
+        ? "Nothing due - grind all " + anstehend + " for " + name +
+          " (this does not change the schedule)"
+        : "Start training with " + name + " (" + anstehend + ")";
 }
 
 function formatTime(ms) {
@@ -2316,6 +3075,7 @@ function showDrill() {
   const t = state.training;
   const posten = t.queue[t.index];
   const entry = posten.entry;
+  const teil = posten.teil ?? null;
 
   // Gegen wen wird geuebt? Nur im Zufallsmodus vergeben.
   drillOpponent.innerHTML = "";
@@ -2343,19 +3103,29 @@ function showDrill() {
   // Lesen oder bearbeiten? Der Stift oben schaltet um.
   const bearbeiten = !!t.editing;
 
-  drillCombo.hidden = bearbeiten;
-  drillComboEdit.hidden = !bearbeiten;
+  // Ein Teil einer zerschnittenen Combo wird nur geuebt, nicht bearbeitet -
+  // geaendert wird sie als Ganzes in der Liste.
+  const nurLesen = bearbeiten && teil !== null;
 
-  if (bearbeiten) {
+  if (bearbeiten && !nurLesen) {
     drillComboEdit.innerHTML = "";
     const box = comboField(entry);
     box.classList.add("editor--drill");
     drillComboEdit.append(box);
     autoGrow(box.querySelector("textarea"));   // erst im Dokument messbar
   } else {
-    drillCombo.innerHTML = tokenize(entry.text);   // gleiche Faerbung wie im Feld
+    drillCombo.innerHTML = tokenize(cardText(entry, teil));
   }
+  drillCombo.hidden = bearbeiten && !nurLesen;
+  drillComboEdit.hidden = !bearbeiten || nurLesen;
+
   drillPosition.textContent = describePosition(entry.position);
+
+  // Woran arbeitet man gerade? Bei Teilen die Nummer, sonst nichts.
+  drillPart.hidden = teil === null;
+  if (teil !== null) {
+    drillPart.textContent = "Part " + (teil + 1) + " / " + entry.parts.length;
+  }
 
   // Die Marken sind genau die Zusatzinfo, die beim Ueben zaehlt. Beim
   // Bearbeiten treten sie unter die Combo, weil die waehlbare Fassung
@@ -2363,7 +3133,8 @@ function showDrill() {
   drillStates.innerHTML = "";
   drillStates.hidden = bearbeiten;
   if (!bearbeiten) {
-    visibleStates(entry).forEach((name) => drillStates.append(stateTag(name)));
+    visibleStates({ states: cardStates(entry, teil) })
+      .forEach((name) => drillStates.append(stateTag(name)));
   }
 
   drillStateEdit.innerHTML = "";
@@ -2381,13 +3152,15 @@ function showDrill() {
   // Beim Lesen gerendert, damit Links anklickbar sind; beim Bearbeiten
   // als Feld. Beides zugleich geht nicht - ein Textfeld kennt keine Links.
   drillComment.hidden = !bearbeiten;
-  drillNote.hidden = bearbeiten || !entry.comment;
+
+  const notiz = teil === null ? entry.comment : (entry.parts[teil].comment || entry.comment);
+  drillNote.hidden = bearbeiten || !notiz;
 
   if (bearbeiten) {
     drillComment.value = entry.comment ?? "";
     autoGrow(drillComment);
   } else {
-    drillNote.innerHTML = entry.comment ? linkify(entry.comment) : "";
+    drillNote.innerHTML = notiz ? linkify(notiz) : "";
   }
 
   // Wie lange wuerde jede Note aufschieben?
@@ -2395,12 +3168,17 @@ function showDrill() {
     // In der gezielten Runde wird nichts geplant - eine Tagesangabe waere gelogen.
     el.textContent = t.temporary
       ? ""
-      : describeInterval(previewInterval(entry, el.dataset.days));
+      : describeInterval(previewInterval(entry, el.dataset.days, teil));
   });
 
   drillCharEdit.innerHTML = "";
   drillCharEdit.hidden = !bearbeiten;
-  if (bearbeiten) drillCharEdit.append(entryCharPicker(entry));
+  if (bearbeiten) {
+    // Die Kategorie gehoert zur ganzen Karte, nicht zu einem Teil.
+    const wahl = categorySelect(entry);
+    wahl.addEventListener("change", () => { showDrill(); updateFlipHeight(true); });
+    drillCharEdit.append(wahl, entryCharPicker(entry));
+  }
 
   const icons = iconsFor(entry.characters);
   drillChars.innerHTML = "";
@@ -2456,22 +3234,24 @@ const DONE_FAIL_SVG =
 // noch einmal, wandert ihre Zeile nach oben statt sich zu verdoppeln.
 // nachOben=false beim Nachbessern aus der Liste: dort soll die Zeile
 // stehenbleiben, sonst rutscht sie unter dem Mauszeiger weg.
-function setGrade(entry, grade, nachOben = true, dauer = null) {
+function setGrade(entry, grade, nachOben = true, dauer = null, teil = null) {
   const t = state.training;
-  let posten = t.done.find((d) => d.entry === entry);
+  const traeger = srOf(entry, teil);
+  let posten = t.done.find((d) => d.entry === entry && d.teil === teil);
 
   if (posten) {
     // Auf den Stand vor der ersten Bewertung zuruecksetzen. Ohne das
     // wuerde sich das Intervall bei jeder Korrektur weiter aufschaukeln.
-    Object.assign(entry, posten.vorher);
+    Object.assign(traeger, posten.vorher);
     if (nachOben) t.done = t.done.filter((d) => d !== posten);
   } else {
     posten = {
       entry,
+      teil,
       vorher: {
-        interval: entry.interval ?? 0,
-        due: entry.due ?? 0,
-        lastGrade: entry.lastGrade ?? null,
+        interval: traeger.interval ?? 0,
+        due: traeger.due ?? 0,
+        lastGrade: traeger.lastGrade ?? null,
       },
     };
   }
@@ -2479,9 +3259,10 @@ function setGrade(entry, grade, nachOben = true, dauer = null) {
   // Beim Grinden wird nichts gespeichert: die Noten gelten nur fuer diese
   // Sitzung und duerfen weder den Plan noch das Tagespensum verstellen.
   if (!t.temporary) {
-    const neu = !posten.gezaehlt;
-    applyGrade(entry, grade);
-    if (neu) { noteReviewed(entry.character); posten.gezaehlt = true; }
+    // Nur der allererste Kontakt zaehlt gegen den Deckel.
+    const warNeu = !posten.gezaehlt && !posten.vorher.lastGrade && !posten.vorher.interval;
+    applyGrade(entry, grade, teil);
+    if (warNeu) { noteNewCard(entry.character); posten.gezaehlt = true; }
   }
 
   touch(entry);              // haelt die Gruppe in der Liste oben
@@ -2522,6 +3303,7 @@ function renderDone() {
     const item = document.createElement("li");
     item.className = "done__item";
     item.dataset.id = posten.entry.id;
+    item.dataset.teil = String(posten.teil ?? "");
 
     const zeile = document.createElement("div");
     zeile.className = "done__row";
@@ -2533,7 +3315,7 @@ function renderDone() {
 
     const combo = document.createElement("p");
     combo.className = "done__combo";
-    combo.innerHTML = tokenize(posten.entry.text);
+    combo.innerHTML = tokenize(cardText(posten.entry, posten.teil ?? null));
 
     zeile.append(zeichen, combo);
 
@@ -2569,9 +3351,10 @@ function renderDone() {
 // Eine mit "Again" zurueckgelegte Combo haengt noch hinten in der
 // Warteschlange. Wird sie nachtraeglich als geschafft bewertet, ist die
 // Wiederholung hinfaellig - gerade eben ist sie ja gelungen.
-function dropPendingRepeat(entry) {
+function dropPendingRepeat(entry, teil = null) {
   const t = state.training;
-  const i = t.queue.findIndex((p, k) => k >= t.index && p.entry === entry);
+  const i = t.queue.findIndex((p, k) =>
+    k >= t.index && p.entry === entry && (p.teil ?? null) === teil);
   if (i === -1) return false;
 
   t.queue.splice(i, 1);
@@ -2584,15 +3367,16 @@ doneList.addEventListener("click", (e) => {
 
   const item = e.target.closest(".done__item");
   const t = state.training;
-  const posten = t.done.find((d) => d.entry.id === item?.dataset.id);
+  const posten = t.done.find((d) =>
+    d.entry.id === item?.dataset.id && String(d.teil ?? "") === item?.dataset.teil);
   if (!posten) return;
 
-  setGrade(posten.entry, grade, false);   // Zeile bleibt, wo sie ist
+  setGrade(posten.entry, grade, false, null, posten.teil ?? null);   // Zeile bleibt
   updateDoneRow(item, posten);            // und bleibt aufgeklappt
 
   // Stand die Wiederholung schon im Hauptfeld, ruecken die restlichen
   // Combos nach; war es die letzte, ist die Runde damit durch.
-  if (grade !== "again" && dropPendingRepeat(posten.entry) && !t.finished) {
+  if (grade !== "again" && dropPendingRepeat(posten.entry, posten.teil ?? null) && !t.finished) {
     if (t.index >= t.queue.length) {
       showFinished();
       return;
@@ -2621,7 +3405,7 @@ function showFinished() {
   drillBack.classList.add("is-done");
   drillDoneRate.textContent =
     "~" + successRate() + "% Performance (" + t.done.length +
-    (t.done.length === 1 ? " combo)" : " combos)") +
+    (t.done.length === 1 ? " drill)" : " drills)") +
     " · " + formatTime(t.elapsed);
 
   drillEditBtn.hidden = true;
@@ -2738,7 +3522,7 @@ drillGrades.addEventListener("click", (e) => {
 
   const posten = t.queue[t.index];
   const dauer = trainingElapsed() - (t.comboStart ?? 0);
-  setGrade(posten.entry, grade, true, dauer);
+  setGrade(posten.entry, grade, true, dauer, posten.teil ?? null);
 
   // "Nochmal" heisst: noch in dieser Runde wieder vorlegen. Hinten anhaengen,
   // damit erst der Rest drankommt.
@@ -2757,8 +3541,6 @@ drillGrades.addEventListener("click", (e) => {
 });
 
 // --- Zahnrad: gezielte Runde oder Einstellungen ---------------
-const settingsMenu = document.getElementById("settingsMenu");
-const tagFilterList = document.getElementById("tagFilterList");
 
 function openPreferences() {
   buildOrderList();
@@ -2770,72 +3552,7 @@ function openPreferences() {
   settingsDlg.showModal();
 }
 
-// Eine Zeile je Marke. Auswahl heisst: nur diese Combos, alle davon,
-// ohne Wiederholungsplan.
-function buildTagFilter() {
-  tagFilterList.innerHTML = "";
-
-  // Die Dummy-Vorgaben stehen hier nicht zur Wahl - sie beschreiben eine
-  // Haltung, keine eigene Kategorie. Drill ist die Ausnahme.
-  const vorgaben = STATE_DEFAULTS.filter((n) => !istDrillName(n))
-    .map((n) => n.toLowerCase());
-
-  for (const name of state.states.filter(
-    (n) => istDrillName(n) || !vorgaben.includes(n.toLowerCase()))) {
-    const item = document.createElement("button");
-    item.type = "button";
-    item.className = "menu__item";
-    item.dataset.filterTag = name;
-    item.setAttribute("role", "menuitemcheckbox");
-
-    const label = document.createElement("span");
-    label.className = "menu__label";
-    label.textContent = tagLabel(name);
-
-    item.innerHTML = STATE_CHECK_SVG;
-    item.prepend(tagMarker(name, "menu__dot"), label);
-    tagFilterList.append(item);
-  }
-
-  syncTagFilter();
-}
-
-function syncTagFilter() {
-  // Marken, die es nicht mehr gibt, fliegen aus der Auswahl.
-  for (const name of [...state.tagFilter]) {
-    if (!state.states.includes(name)) state.tagFilter.delete(name);
-  }
-
-  tagFilterList.querySelectorAll("[data-filter-tag]").forEach((item) => {
-    const an = state.tagFilter.has(item.dataset.filterTag);
-    item.classList.toggle("is-active", an);
-    item.setAttribute("aria-checked", String(an));
-  });
-
-  // Am Zahnrad sichtbar machen, dass eine Auswahl aktiv ist - sonst
-  // waere unerklaerlich, warum nur ein Teil der Combos drankommt.
-  settingsBtn.classList.toggle("is-filtered", state.tagFilter.size > 0);
-  syncDojo();
-}
-
-settingsMenu.addEventListener("click", (e) => {
-  if (e.target.closest("[data-open-prefs]")) {
-    closePopover(gearPop);
-    openPreferences();
-    return;
-  }
-
-  const name = e.target.closest("[data-filter-tag]")?.dataset.filterTag;
-  if (!name) return;
-
-  state.tagFilter.has(name) ? state.tagFilter.delete(name) : state.tagFilter.add(name);
-  syncTagFilter();
-});
-
-const gearPop = registerPopover(settingsBtn, settingsMenu, () => {
-  buildTagFilter();
-  return true;
-});
+settingsBtn.addEventListener("click", openPreferences);
 
 // ============================================================
 //  Teilen, Import und Export
@@ -2979,8 +3696,8 @@ function applyShare(paket) {
   const name = CHAR_BY_ID.get(paket.c).name;
   const uebersprungen = eintraege.length - dazu;
   return dazu === 0
-    ? "Nothing imported - all " + eintraege.length + " combos for " + name + " are already here."
-    : dazu + (dazu === 1 ? " combo" : " combos") + " for " + name + " imported" +
+    ? "Nothing imported - all " + eintraege.length + " drills for " + name + " are already here."
+    : dazu + (dazu === 1 ? " drill" : " drills") + " for " + name + " imported" +
       (uebersprungen > 0 ? " (" + uebersprungen + " already here)" : "") + ".";
 }
 
@@ -3253,7 +3970,7 @@ function askDialog({ title, text, buttons }) {
 function describePacket(paket) {
   const name = CHAR_BY_ID.get(paket.c).name;
   const n = paket.e.length;
-  return name + ", " + n + (n === 1 ? " combo" : " combos");
+  return name + ", " + n + (n === 1 ? " drill" : " drills");
 }
 
 // ============================================================
@@ -3268,6 +3985,7 @@ const allowedCount= document.getElementById("allowedCount");
 const srEnabled   = document.getElementById("srEnabled");
 const srPerDay    = document.getElementById("srPerDay");
 const srAll       = document.getElementById("srAll");
+const srNewDays   = document.getElementById("srNewDays");
 const srMaxDays   = document.getElementById("srMaxDays");
 
 const GRIP_SVG =
@@ -3503,8 +4221,12 @@ function syncSettingsUi() {
 
   srEnabled.checked = sr.enabled;
   srAll.checked = sr.perDay === null;
-  srPerDay.value = sr.perDay ?? 20;
+  srPerDay.value = sr.perDay ?? 10;
   srPerDay.disabled = !sr.enabled || sr.perDay === null;
+  srNewDays.value = sr.newDays ?? 1;
+  srNewDays.disabled = !sr.enabled || sr.perDay === null;
+  document.getElementById("srNewDaysUnit").textContent =
+    (Number(srNewDays.value) === 1 ? "day" : "days") + ", per character";
   srMaxDays.value = sr.maxDays;
   srMaxDays.disabled = !sr.enabled;
   srAll.disabled = !sr.enabled;
@@ -3519,6 +4241,7 @@ function leseSettings() {
   const sr = state.settings.sr;
   sr.enabled = srEnabled.checked;
   sr.perDay = srAll.checked ? null : Math.max(1, Number(srPerDay.value) || 1);
+  sr.newDays = Math.min(60, Math.max(1, Number(srNewDays.value) || 1));
   sr.maxDays = Math.min(365, Math.max(1, Number(srMaxDays.value) || 1));
 
   syncSettingsUi();
@@ -3526,10 +4249,37 @@ function leseSettings() {
   persist();
 }
 
-[srEnabled, srAll, srPerDay, srMaxDays].forEach((el) =>
+[srEnabled, srAll, srPerDay, srNewDays, srMaxDays].forEach((el) =>
   el.addEventListener("change", leseSettings));
 
 document.getElementById("settingsClose").addEventListener("click", () => settingsDlg.close());
+
+// --- Alles loeschen ------------------------------------------
+// Raeumt jede Ablage dieses Programms, auch die aus der Zeit vor der
+// Spielauswahl. Danach neu laden, damit nichts aus dem Arbeitsspeicher
+// die geleerte Ablage gleich wieder fuellt.
+document.getElementById("wipeAll").addEventListener("click", async () => {
+  const ja = await askDialog({
+    title: "Delete everything?",
+    text: "Every drill, tag, category and preference of every game will be " +
+          "removed, including games you built yourself. This cannot be undone.",
+    buttons: [
+      { value: true, label: "Delete everything", kind: "danger" },
+      { value: null, label: "Cancel", kind: "quiet" },
+    ],
+  });
+  if (!ja) return;
+
+  try {
+    for (const key of Object.keys(localStorage)) {
+      if (key.startsWith("fgdrills") || key.startsWith("ggst-combo-trainer")) {
+        localStorage.removeItem(key);
+      }
+    }
+  } catch { /* ohne Ablage gibt es nichts zu raeumen */ }
+
+  location.reload();
+});
 
 // --- Rueckmeldung --------------------------------------------
 // Ohne sichtbare Antwort waere nach dem Einfuegen eines Codes nicht
@@ -3577,7 +4327,7 @@ async function shareCharacter(charId) {
   try {
     await navigator.clipboard.writeText(code);
     showNotice("Share code for " + name + " copied (" + anzahl +
-               (anzahl === 1 ? " combo" : " combos") + ", " + code.length + " characters).");
+               (anzahl === 1 ? " drill" : " drills") + ", " + code.length + " characters).");
   } catch {
     // Zwischenablage kann gesperrt sein - dann den Code zum Kopieren zeigen.
     showNotice("Clipboard unavailable - the code is selected, copy it with Ctrl+C:",
@@ -3611,9 +4361,9 @@ input.addEventListener("paste", async (e) => {
   }
 
   const ja = await askDialog({
-    title: "Import combos?",
+    title: "Import drills?",
     text: describePacket(paket) + ". They will be added to your collection; " +
-          "combos you already have are left untouched.",
+          "drills you already have are left untouched.",
     buttons: [
       { value: true, label: "Import", kind: "primary" },
       { value: null, label: "Cancel", kind: "quiet" },
@@ -3650,7 +4400,7 @@ exportBtn.addEventListener("click", () => {
   a.click();
   URL.revokeObjectURL(url);
 
-  showNotice(state.entries.length + " combos exported.");
+  showNotice(state.entries.length + " drills exported.");
 });
 
 // --- Import ---------------------------------------------------
@@ -3715,8 +4465,8 @@ importFile.addEventListener("change", async () => {
     renderEntries();
 
     showNotice(dazu === 0
-      ? "Nothing imported - all " + eintraege.length + " combos are already here."
-      : dazu + (dazu === 1 ? " combo" : " combos") + " imported" +
+      ? "Nothing imported - all " + eintraege.length + " drills are already here."
+      : dazu + (dazu === 1 ? " drill" : " drills") + " imported" +
         (eintraege.length - dazu > 0 ? " (" + (eintraege.length - dazu) + " already here)" : "") + ".");
   } catch {
     showNotice("Could not read that file.", "error");
@@ -3778,6 +4528,8 @@ function saveNow() {
     v: 1,
     entries: state.entries,
     states: state.states,
+    categories: state.categories,
+    groupByCategory: state.groupByCategory,
     reviewed: state.reviewed,
     character: state.character,
     persistInput: persistBox.checked,
@@ -3803,10 +4555,12 @@ function loadStored() {
   if (Array.isArray(daten.entries)) {
     // Nur Eintraege mit bekanntem Charakter uebernehmen.
     state.entries = daten.entries.filter((e) => e && CHAR_BY_ID.has(e.character));
+    state.entries.forEach(migrateDrillState);
   }
 
   if (Array.isArray(daten.states) && daten.states.length) {
-    state.states = daten.states.map(String);
+    // Die Drill-Marke faellt weg; sie ist jetzt eine Kategorie.
+    state.states = daten.states.map(String).filter((n) => !istDrillName(n));
     // Aeltere Ablagen kennen die Vorgaben noch nicht.
     for (const name of STATE_DEFAULTS) {
       const da = state.states.some(
@@ -3814,6 +4568,12 @@ function loadStored() {
       if (!da) state.states.push(name);
     }
   }
+
+  if (Array.isArray(daten.categories) && daten.categories.length) {
+    state.categories = daten.categories.map(String);
+    if (!state.categories.includes(DRILL_STATE)) state.categories.unshift(DRILL_STATE);
+  }
+  if (typeof daten.groupByCategory === "boolean") state.groupByCategory = daten.groupByCategory;
 
   if (daten.reviewed && typeof daten.reviewed === "object") state.reviewed = daten.reviewed;
   if (CHAR_BY_ID.has(daten.character)) state.character = daten.character;
@@ -3907,12 +4667,27 @@ function loadGame(game) {
   syncPositionUi();
   buildStateList();
   syncStates();
+  buildCategoryList();
+  syncCategory();
   syncGameUi();
+
+  // Das Gegner-Raster in den Einstellungen wird erst beim Oeffnen gebaut
+  // und danach nicht mehr angefasst. Beim Spielwechsel muss es also weg,
+  // sonst stehen dort weiter die Charaktere des alten Spiels.
+  allowedGrid.innerHTML = "";
+
   renderEntries();
 }
 
 function switchGame(id) {
-  const game = gameById(id);
+  // Kein stiller Rueckfall auf das erste Spiel: eine unbekannte Kennung
+  // sieht dann wie ein erfolgreicher Wechsel aus, waehrend man in
+  // Wahrheit im alten Spiel steht - und dort weiterschreibt.
+  const game = GAME_BY_ID.get(id);
+  if (!game) {
+    showNotice("No game with the id \"" + id + "\".", "error");
+    return;
+  }
   if (game.id === GAME.id) return;
 
   // Der laufende Durchlauf gehoert zum alten Spiel - erst beenden.
@@ -3928,4 +4703,5 @@ function switchGame(id) {
 
 // --- Start ---------------------------------------------------
 migrateLegacy();
+loadCustomGames();
 loadGame(gameById(readJson(APP_KEY)?.game ?? GAMES[0].id));

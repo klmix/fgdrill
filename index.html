@@ -122,25 +122,15 @@
           </svg>
         </button>
 
-        <!-- Zahnrad: erst eine Auswahl, was trainiert werden soll -->
-        <div class="picker picker--gear">
-          <button id="settingsButton" type="button" class="head-icon" title="Training settings"
-                  aria-label="Settings">
+        <!-- Zahnrad: oeffnet die Einstellungen -->
+        <button id="settingsButton" type="button" class="head-icon" title="Training settings"
+                aria-label="Settings">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
                  stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <circle cx="12" cy="12" r="3.2"/>
               <path d="M19.4 15a1.6 1.6 0 0 0 .32 1.77l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.6 1.6 0 0 0-1.77-.32 1.6 1.6 0 0 0-.97 1.47V21a2 2 0 1 1-4 0v-.1a1.6 1.6 0 0 0-1.05-1.46 1.6 1.6 0 0 0-1.77.32l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.6 1.6 0 0 0 .32-1.77 1.6 1.6 0 0 0-1.47-.97H3a2 2 0 1 1 0-4h.1a1.6 1.6 0 0 0 1.46-1.05 1.6 1.6 0 0 0-.32-1.77l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.6 1.6 0 0 0 1.77.32H9a1.6 1.6 0 0 0 .97-1.47V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 .97 1.47 1.6 1.6 0 0 0 1.77-.32l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.6 1.6 0 0 0-.32 1.77V9a1.6 1.6 0 0 0 1.47.97H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.47.97Z"/>
             </svg>
-          </button>
-
-          <div id="settingsMenu" class="menu menu--gear" role="menu" hidden>
-            <div id="tagFilterList"></div>
-            <div class="menu__sep"></div>
-            <button type="button" class="menu__item" data-open-prefs>
-              <span class="menu__label">Preferences</span>
-            </button>
-          </div>
-        </div>
+        </button>
 
         <!-- Hilfe; noch ohne Inhalt -->
         <button id="helpButton" type="button" class="head-help" title="Help" aria-label="Help">
@@ -156,8 +146,42 @@
       <div class="composer__flip">
         <div id="flip" class="flip">
         <div class="composer__box flip__face flip__front">
+
+          <!-- Schnittansicht: dieselbe Combo, aber an ihren Fugen aufgeteilt.
+               Ein Klick auf eine Fuge macht daraus eine Trennstelle. -->
+          <div id="cutPane" class="cut" hidden>
+            <p class="cut__hint">Click a joint to cut. Enter saves.</p>
+            <div id="cutText" class="cut__text"></div>
+
+            <div class="cut__options">
+              <label class="cut__row">
+                <span>Tags of the parts</span>
+                <select id="cutTags" class="cut__select">
+                  <option value="all">Same as the whole combo</option>
+                  <option value="none">None</option>
+                </select>
+              </label>
+
+              <label class="cut__row">
+                <span>Order in training</span>
+                <select id="cutChain" class="cut__select">
+                  <option value="1">Parts always one after another</option>
+                  <option value="0">Parts may come separately</option>
+                </select>
+              </label>
+
+              <label class="cut__row">
+                <span>The whole combo</span>
+                <select id="cutUnlock" class="cut__select">
+                  <option value="graded">Only once every part is Good</option>
+                  <option value="always">Right after the parts</option>
+                </select>
+              </label>
+            </div>
+          </div>
+
           <!-- Die eingefaerbte Fassung liegt hinter dem (transparenten) Textfeld. -->
-          <div class="editor">
+          <div id="editorBox" class="editor">
             <div id="comboHighlight" class="editor__highlight" aria-hidden="true"></div>
             <textarea id="comboInput" class="composer__input" rows="1" spellcheck="false"
                       placeholder="Enter a combo"></textarea>
@@ -175,7 +199,7 @@
                       aria-haspopup="menu" aria-expanded="false">
                 <!-- Zeigt die Buehne der gerade gewaehlten Position. -->
                 <span id="positionIcon" class="picker-button__stage"></span>
-                <span id="positionLabel" class="picker-button__label">Everywhere</span>
+                
                 <svg class="picker-button__caret" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                   <path d="m6 9 6 6 6-6"/>
@@ -221,7 +245,7 @@
                 <path d="M3 11V4.5A1.5 1.5 0 0 1 4.5 3H11l9.5 9.5a1.5 1.5 0 0 1 0 2.1l-6.4 6.4a1.5 1.5 0 0 1-2.1 0L3 11Z"/>
                 <circle cx="7.5" cy="7.5" r="1.2"/>
               </svg>
-              <span id="stateLabel" class="picker-button__label">Special States</span>
+              <span id="stateLabel" class="picker-button__label">State</span>
               <svg class="picker-button__caret" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <path d="m6 9 6 6 6-6"/>
@@ -229,7 +253,7 @@
             </button>
 
             <div id="statePanel" class="menu menu--states" role="dialog"
-                 aria-label="Special States" hidden>
+                 aria-label="State" hidden>
               <div id="stateList"></div>
               <form id="stateAdd" class="state-add">
                 <input id="stateInput" class="state-add__input" type="text"
@@ -239,6 +263,42 @@
               </form>
             </div>
           </div>
+
+          <!-- Kategorie: hoechstens eine je Karte, gruppiert die Liste. -->
+          <div class="picker picker--category">
+            <button id="categoryButton" type="button" class="picker-button"
+                    aria-haspopup="menu" aria-expanded="false">
+              <svg class="picker-button__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/>
+              </svg>
+              
+              <svg class="picker-button__caret" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="m6 9 6 6 6-6"/>
+              </svg>
+            </button>
+
+            <div id="categoryPanel" class="menu menu--states" role="dialog"
+                 aria-label="Category" hidden>
+              <div id="categoryList"></div>
+              <form id="categoryAdd" class="state-add">
+                <input id="categoryInput" class="state-add__input" type="text"
+                       placeholder="New category ..." autocomplete="off" maxlength="24">
+                <button type="submit" class="state-add__go" title="Add"
+                        aria-label="Add">+</button>
+              </form>
+            </div>
+          </div>
+
+          <button id="cutButton" type="button" class="send-button send-button--cut"
+                  title="Split into parts" aria-pressed="false">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                   stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/>
+                <path d="M20 4 8.12 15.88"/><path d="M14.47 14.48 20 20"/><path d="M8.12 8.12 12 12"/>
+              </svg>
+            </button>
 
           <button id="saveButton" type="button" class="send-button" title="Save">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
@@ -257,6 +317,7 @@
                 <span id="drillOpponent" class="drill__opponent" hidden></span>
                 <span id="drillPosition" class="drill__position"></span>
                 <span id="drillStates" class="drill__states"></span>
+                <span id="drillPart" class="drill__part" hidden></span>
               </span>
               <span id="drillProgress" class="drill__progress"></span>
             </div>
@@ -308,7 +369,7 @@
 
         <div class="toolbar">
           <button id="exportButton" type="button" class="toolbar__btn"
-                  title="Export all combos to a file" hidden>
+                  title="Export all drills to a file" hidden>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
                  stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M12 20V9"/><path d="m7.5 13.5 4.5-4.5 4.5 4.5"/>
@@ -317,7 +378,7 @@
             <span>Export</span>
           </button>
 
-          <button id="importButton" type="button" class="toolbar__btn" title="Import combos from a file">
+          <button id="importButton" type="button" class="toolbar__btn" title="Import drills from a file">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
                  stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M12 3v11"/><path d="m7.5 9.5 4.5 4.5 4.5-4.5"/>
@@ -339,7 +400,7 @@
 
     <!-- Liste der bereits angelegten Combos.
          Solange nichts gespeichert ist, steht hier nichts - auch keine Ueberschrift. -->
-    <div id="entryList" class="entries" aria-label="Saved combos" hidden></div>
+    <div id="entryList" class="entries" aria-label="Saved drills" hidden></div>
 
   </main>
 
@@ -351,6 +412,27 @@
   </dialog>
 
   <!-- Einstellungen fuer das Training -->
+  <!-- Eigenes Spiel: reiner Text, damit es sich weitergeben laesst. -->
+  <dialog id="gameDialog" class="dialog dialog--wide">
+    <h2 class="dialog__title">Your own game</h2>
+    <p class="setting__hint">
+      A game is plain data: roster, notation, default tags and theme colours.
+      Character pictures are optional and given as a link, so the whole
+      definition stays text you can pass on.
+    </p>
+
+    <div class="game-editor">
+      <textarea id="gameSource" class="game-editor__area" spellcheck="false"></textarea>
+      <p id="gameError" class="game-editor__error" hidden></p>
+    </div>
+
+    <div class="dialog__actions">
+      <button type="button" id="gameDrop" class="dialog__btn is-quiet">Delete this game</button>
+      <button type="button" id="gameCancel" class="dialog__btn is-quiet">Cancel</button>
+      <button type="button" id="gameSave" class="dialog__btn is-primary">Save game</button>
+    </div>
+  </dialog>
+
   <dialog id="settingsDialog" class="dialog dialog--wide">
     <h2 class="dialog__title">Preferences</h2>
 
@@ -398,11 +480,19 @@
           <span>Schedule Reviews</span>
         </label>
 
+        <p class="setting__hint">
+          Everything that is due comes up - the limit is only about how fast
+          untrained items are added to the rotation.
+        </p>
+
         <div class="setting__row" id="srPerDayRow">
-          <label for="srPerDay">Combos per day, per character</label>
+          <label for="srPerDay">New items:</label>
           <input type="number" id="srPerDay" class="setting__num" min="1" max="999">
+          <span>every</span>
+          <input type="number" id="srNewDays" class="setting__num" min="1" max="60">
+          <span id="srNewDaysUnit">days, per character</span>
           <label class="setting__inline">
-            <input type="checkbox" id="srAll"> all due
+            <input type="checkbox" id="srAll"> no limit
           </label>
         </div>
 
@@ -416,8 +506,9 @@
       <section class="setting">
         <h3 class="setting__title">Grade Buttons</h3>
         <p class="setting__hint">
-          The score at the end always counts Again 0, Hard 3, Good 7 and
-          Easy 10 out of 10, whatever the buttons are called.
+          Labels are purely cosmetic. The score at the end always counts
+          Again 0, Hard 3, Good 7 and Easy 10 out of 10, and the schedule
+          is unaffected too.
         </p>
         <label class="setting__row">
           <input type="checkbox" id="gradeCustom">
@@ -463,6 +554,20 @@
       </section>
     </div>
 
+    <!-- Ganz unten, mit Abstand und in Rot: von hier gibt es kein
+         Zurueck, und beim Suchen nach etwas anderem soll niemand
+         hineinstolpern. -->
+    <section class="setting setting--danger">
+      <h3 class="setting__title">Reset</h3>
+      <p class="setting__hint">
+          Removes every drill, tag, category and preference of every game,
+          including games you built yourself.
+      </p>
+      <button type="button" id="wipeAll" class="dialog__btn is-danger">
+          Delete all data
+      </button>
+    </section>
+
     <div class="dialog__actions">
       <button type="button" id="settingsClose" class="dialog__btn is-primary">Done</button>
     </div>
@@ -472,6 +577,8 @@
        combo.js stehen: die Notation wird beim Laden daraus gebaut. -->
   <script src="games/ggst.js"></script>
   <script src="games/sf6.js"></script>
+  <script src="games/bbcf.js"></script>
+  <script src="games/gbvsr.js"></script>
   <script src="games/index.js"></script>
   <script src="combo.js"></script>
 </body>

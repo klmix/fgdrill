@@ -740,7 +740,7 @@ body.page-scrolls { height: auto; min-height: 100vh; }
 }
 
 .group__name {
-  flex: 1;
+  flex: none;
   margin: 0;
   font-size: 14px;
   font-weight: 600;
@@ -752,6 +752,9 @@ body.page-scrolls { height: auto; min-height: 100vh; }
   font-size: 12px;
   color: var(--muted);
 }
+
+/* Erst der Name, die Zahl und der Kreis - die Knoepfe stehen rechts. */
+.group__head [data-group-toggle] { margin-left: auto; }
 
 .group__list {
   list-style: none;
@@ -1539,6 +1542,15 @@ body.page-scrolls { height: auto; min-height: 100vh; }
 
 .dialog__btn.is-quiet { background: transparent; color: var(--muted); }
 .dialog__btn.is-quiet:hover { background: var(--fill); }
+
+/* Kein Vollton: ein roter Block zoege den Blick auf sich, obwohl das
+   hier die seltenste Handlung ist. Der Rand genuegt als Warnung. */
+.dialog__btn.is-danger {
+  background: transparent;
+  color: var(--danger);
+  border-color: var(--danger-weak);
+}
+.dialog__btn.is-danger:hover { background: var(--danger-soft); border-color: var(--danger); }
 
 /* ============================================================
    Einstellungen fuers Training
@@ -2354,9 +2366,11 @@ body.page-scrolls { height: auto; min-height: 100vh; }
   max-width: 240px;
 }
 
-/* Kuerzel des Spiels, bis es ein Logo gibt. */
+/* Symbol des Spiels; ohne Bild bleibt das Kuerzel darunter stehen. */
 .game-button__tile,
 .game-tile {
+  position: relative;
+  overflow: hidden;
   flex: none;
   display: grid;
   place-items: center;
@@ -2388,3 +2402,295 @@ body.page-scrolls { height: auto; min-height: 100vh; }
 @media (max-height: 560px) {
   .game-switch { position: absolute; }
 }
+
+/* ============================================================
+   Zerschnittene Combos
+   ============================================================ */
+/* Schnittansicht: dieselbe Combo, an ihren Fugen aufgeteilt. */
+.cut { padding: 2px; }
+
+.cut__hint {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.cut__text {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+  font-size: 16px;
+  line-height: 1.5;
+  font-weight: 700;
+}
+
+.cut__piece { white-space: pre-wrap; }
+
+/* Die Fuge ist der Knopf: unauffaellig, bis sie zur Trennstelle wird. */
+.cut__joint {
+  padding: 0 5px;
+  background: var(--fill-soft);
+  color: var(--tok-sep);
+  border: 1px dashed var(--border-strong);
+  border-radius: 5px;
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background-color .1s ease, color .1s ease;
+}
+.cut__joint:hover { border-color: var(--accent); color: var(--accent); }
+
+.cut__joint.is-cut {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-style: solid;
+  border-color: var(--accent);
+}
+/* Getrennt heisst: hier bricht die Combo. Das Zeichen weicht dem Schnitt. */
+.cut__joint.is-cut::after { content: " \2702"; font-size: 11px; }
+
+.cut__options {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--hairline);
+}
+/* Solange nichts getrennt ist, sind die Einstellungen gegenstandslos. */
+.cut:not(.is-split) .cut__options { opacity: .4; pointer-events: none; }
+
+.cut__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--text-soft);
+}
+
+.cut__select {
+  flex: none;
+  max-width: 60%;
+  padding: 4px 8px;
+  background: var(--surface);
+  color: var(--tile-fg);
+  border: 1px solid var(--composer-border);
+  border-radius: 8px;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.send-button--cut {
+  margin-left: auto;
+  background: var(--fill);
+  color: var(--text-soft);
+}
+.send-button--cut:hover { background: var(--fill-hover); }
+.send-button--cut.is-active { background: var(--accent); color: #fff; }
+.send-button--cut + .send-button { margin-left: 8px; }
+
+/* --- In der Combo-Liste --- */
+/* Der Schnitt wird markiert, die Combo bleibt am Stueck lesbar - und das
+   Trennzeichen selbst auch: ">" heisst Gatling, "," heisst Link. Die
+   gestrichelte Linie sagt "hier wird getrennt", nicht das Zeichen. */
+.entry__cut {
+  margin: 0 4px;
+  padding: 1px 6px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-radius: 5px;
+  font-weight: 700;
+}
+
+/* Ein Balken unter jedem Teil zeigt, wie sicher er sitzt. */
+.entry__part {
+  border-bottom: 2px solid var(--hairline);
+  padding-bottom: 1px;
+}
+.entry__part--again { border-bottom-color: var(--again-fg); }
+.entry__part--hard  { border-bottom-color: var(--hard-fg); }
+.entry__part--good  { border-bottom-color: var(--good-fg); }
+.entry__part--easy  { border-bottom-color: var(--easy-fg); }
+
+.entry__comment--part {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-left: 2px;
+}
+
+.entry__part-no {
+  flex: none;
+  min-width: 15px;
+  height: 15px;
+  display: inline-grid;
+  place-items: center;
+  background: var(--fill-strong);
+  color: var(--muted);
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+/* Welcher Teil gerade dran ist. */
+.drill__part {
+  padding: 1px 7px;
+  background: var(--fill-soft);
+  color: var(--muted);
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* Das Symbol deckt die Kachel; fehlt es, sieht man das Kuerzel. */
+.game-button__tile img,
+.game-tile img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* --- Eigenes Spiel anlegen --- */
+.menu--games .menu__item--new {
+  margin-top: 4px;
+  padding-top: 8px;
+  border-top: 1px solid var(--hairline);
+  color: var(--muted);
+}
+
+.game-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.game-editor__area {
+  width: 100%;
+  min-height: 320px;
+  padding: 10px 12px;
+  background: var(--code-bg, var(--fill-soft));
+  color: var(--tile-fg);
+  border: 1px solid var(--composer-border);
+  border-radius: 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  resize: vertical;
+  outline: none;
+}
+.game-editor__area:focus { border-color: var(--accent); }
+
+.game-editor__error {
+  margin: 0;
+  color: var(--danger);
+  font-size: 12px;
+}
+
+/* ============================================================
+   Faellige Drills als Zahl im Kreis
+   ============================================================ */
+.due-badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  min-width: 19px;
+  height: 19px;
+  padding: 0 5px;
+  display: grid;
+  place-items: center;
+  background: var(--accent);
+  color: #fff;
+  border: 2px solid var(--surface);
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  pointer-events: none;
+}
+
+/* Die Kachel traegt den Kreis an ihrer Ecke. */
+.char { position: relative; overflow: visible; }
+
+/* Ausgegraut wird nur das Bild - der Kreis bleibt in voller Staerke. */
+.char.is-empty .due-badge { opacity: 1; }
+
+/* Im Gruppenkopf steht er in der Zeile statt in einer Ecke. */
+.group__head .due-badge {
+  position: static;
+  margin-left: 1px;
+  border-color: transparent;
+}
+
+/* ============================================================
+   Kategorien in der Combo-Liste
+   Nur ein farbiger Rahmen um die Karten einer Kategorie. Der Einzug
+   bleibt derselbe wie bei den uebrigen, damit alle Combos an
+   derselben Stelle beginnen.
+   ============================================================ */
+.category {
+  position: relative;
+  margin: 18px 0 6px;
+  /* Weiter nach links als die Karten darin, damit der Rahmen nicht am
+     Positionssymbol klebt. */
+  margin-left: -8px;
+  padding: 8px 0 4px 8px;
+  border: 1.5px solid var(--category-color, var(--hairline));
+  border-radius: 12px;
+}
+
+/* Der Titel sitzt auf der Kante des Rahmens. */
+/* Gleiche Schrift wie der Charaktername - der Titel ist eine
+   Ueberschrift, keine Fussnote. */
+.category__title {
+  position: absolute;
+  top: -10px;
+  left: 12px;
+  padding: 0 7px;
+  background: var(--composer-bg);
+  /* Gleiche Schrift und Farbe wie der Charaktername - die Kategorie
+     zeigt sich am Rahmen, nicht an einer blassen Beschriftung. */
+  color: var(--tile-fg);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: .01em;
+}
+
+/* Der Rahmen bringt seinen eigenen Rand mit; die Liste darin nicht. */
+.category .group__list { margin: 0; }
+
+/* Eine gewaehlte Kategorie zeigt sich am Rand, nicht am Grund - genau
+   wie beim Charakterknopf. Der Grund bliebe sonst unruhig, sobald mehrere
+   Felder nebeneinander eingefaerbt waeren. */
+.picker-button.is-set {
+  border-width: 2px;
+  /* Der staerkere Rand darf den Knopf nicht groesser machen. */
+  padding: 6px 11px;
+}
+[data-theme="game"] .picker-button.is-set,
+[data-theme="game"] .picker-button.is-set:hover { border-color: inherit; }
+
+/* Das Zeichen der Kategorie sitzt, wo sonst das Ordnersymbol steht. */
+.picker-button__mark { flex: none; }
+
+/* Position und Kategorie zeigen nur ihr Symbol - ohne Beschriftung
+   braucht der Knopf weniger Luft. */
+.picker--category .picker-button,
+.picker--position .picker-button { gap: 5px; }
+
+/* Der Reset steht abgesetzt unter den Reitern - man soll beim Suchen
+   nach etwas anderem nicht hineinstolpern. */
+.setting--danger {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--hairline);
+}
+
+/* Schmaler als die anderen Auswahlfelder: in einer Zeile mit Position
+   und Gegnern ist wenig Platz. */
+.entry__category { max-width: 118px; }

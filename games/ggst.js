@@ -46,6 +46,8 @@ const GAME_GGST = {
     { id: "venom",      name: "Venom",               short: "VE" },
     { id: "unika",      name: "Unika",               short: "UN" },
     { id: "lucy",       name: "Lucy",                short: "LU" },
+    { id: "jam",        name: "Jam Kuradoberi",      short: "JA" },
+    { id: "roboky",     name: "Robo-Ky",             short: "RK" },
   ],
 
   // Ohne Season Pass verfuegbar - Voreinstellung fuer die Zufallsauswahl.

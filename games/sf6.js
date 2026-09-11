@@ -134,14 +134,28 @@ const GAME_SF6 = {
     },
   },
 
-  // Blau als Leitfarbe, wie im Spielmenue. https://www.streetfighter.com/6/
+  // Nach dem Logo: Sprayorange auf Asphalt. Der Wuerfel darin ist kein
+  // reines Schwarz, sondern betongrau - deshalb sind auch die Flaechen
+  // etwas heller und kuehler als im Guilty-Gear-Thema.
   theme: {
-    "--accent": "#2f6bff",
-    "--accent-hover": "#4d82ff",
-    "--accent-soft": "#0b1b3f",
-    "--accent-soft-hover": "#12295c",
-    "--send-bg": "#2f6bff",
-    "--send-bg-hover": "#4d82ff",
+    "--accent": "#f26522",
+    "--accent-hover": "#ff7c3c",
+    "--accent-soft": "#3a1608",
+    "--accent-soft-hover": "#52200c",
+
+    "--send-bg": "#f26522",
+    "--send-bg-hover": "#ff7c3c",
     "--send-fg": "#ffffff",
+
+    "--page-bg": "#0b0b0c",
+    "--composer-bg": "#17181a",
+    "--surface": "#1c1d20",
+    "--fill-soft": "#232529",
+    "--fill": "#282a2f",
+    "--fill-hover": "#33363c",
+    "--fill-strong": "#3b3e45",
+    "--hairline": "#2c2e33",
+    "--composer-border": "#3d4046",
+    "--border-strong": "#52565e",
   },
 };

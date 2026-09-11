@@ -38,6 +38,16 @@ the tiles show the character's short code.
 Combos, tags and preferences are stored per game, so switching games never
 mixes collections.
 
+When a new character arrives, `tools/make-icon.py` prepares the picture the
+same way as all the others - it trims the soft frame most wiki icons carry,
+crops to a square, scales to 134px and reduces the palette:
+
+    python tools/make-icon.py ggst jam path/to/picture.png
+    python tools/make-icon.py sf6 mai https://example.com/mai.png
+
+Then add the character to the game file. Games you build in the app need no
+tool at all: give each character an `icon` link instead.
+
 ## Running it
 
 No build step and no dependencies — it is plain HTML, CSS and JavaScript.
