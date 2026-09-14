@@ -13,11 +13,14 @@ Guilty Gear -Strive- ships with the tool; other games are added as data.
 
 - Syntax highlighting for the game's notation, including prefixes (`j.`, `c.`,
   `f.`), charge and hold (`[4]6S`, `5[H]`), the cancel family and counter hit
-- Spaced repetition with a per-character daily budget, or a free "grind" round
+- Start training asks what kind of round it is: spaced repetition,
+  grinding categories you pick yourself, or a routine you built and saved
 - Drag-and-drop ordering of the sort levels; values within a level are
   shuffled every round
 - Opponent assignment that covers your combo set with as few dummy changes
   as possible
+- Characters the game does not ship can be added by hand, with a name, a
+  short label and an optional link to a picture
 - Custom tags per combo, a drill tag that bypasses the schedule
 - Three themes, custom notation colours and your own regex rules
 - Everything is stored in the browser; combos travel via export files or

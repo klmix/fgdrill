@@ -411,6 +411,143 @@
     <div id="dialogActions" class="dialog__actions"></div>
   </dialog>
 
+  <!-- Welche Runde soll es sein? Der Startknopf fragt erst, statt die
+       Art des Trainings aus der Lage zu erraten. -->
+  <dialog id="trainDialog" class="dialog">
+    <h2 class="dialog__title">Train <span id="trainWho"></span></h2>
+
+    <div id="trainModes" class="train-modes">
+      <button type="button" class="train-mode" data-mode="sr" aria-pressed="false">
+        <span class="train-mode__head">
+          <span class="train-mode__name">Spaced Repetition</span>
+          <span id="trainDue" class="train-mode__count"></span>
+        </span>
+        <span class="train-mode__hint">
+          Whatever the schedule has for today. Your grades move the cards.
+        </span>
+      </button>
+
+      <button type="button" class="train-mode" data-mode="grind" aria-pressed="false">
+        <span class="train-mode__head">
+          <span class="train-mode__name">Grind Selected</span>
+          <span id="trainGrindCount" class="train-mode__count"></span>
+        </span>
+        <span class="train-mode__hint">
+          Pick what to drill and run it as often as you like. Nothing is
+          scheduled and no grade is kept.
+        </span>
+      </button>
+
+      <button type="button" class="train-mode" data-mode="routine" aria-pressed="false">
+        <span class="train-mode__head">
+          <span class="train-mode__name">Custom Training</span>
+          <span id="trainRoutineCount" class="train-mode__count"></span>
+        </span>
+        <span class="train-mode__hint">
+          Your own routine: choose the drills, put them in the order you
+          want and repeat any of them as often as you like. Saved under a
+          name, ready to run again.
+        </span>
+      </button>
+    </div>
+
+    <div id="trainPick" class="train-pick" hidden>
+      <div class="train-pick__tools">
+        <button type="button" class="chip" data-pick="all">All</button>
+        <button type="button" class="chip" data-pick="none">None</button>
+      </div>
+      <div id="trainCats" class="train-cats"></div>
+    </div>
+
+    <div id="trainRoutinePick" class="train-pick" hidden>
+      <div id="trainRoutines" class="train-cats"></div>
+      <button type="button" id="routineNew" class="routine-new">+ New routine</button>
+    </div>
+
+    <div class="dialog__actions">
+      <button type="button" id="trainCancel" class="dialog__btn is-quiet">Cancel</button>
+      <button type="button" id="trainGo" class="dialog__btn is-primary">Start</button>
+    </div>
+  </dialog>
+
+  <!-- Ein Charakter, den das Spiel nicht mitbringt. -->
+  <dialog id="charDialog" class="dialog">
+    <h2 class="dialog__title">Your own character</h2>
+    <p class="setting__hint">
+      Not on the roster? Add it here. It then behaves like every other
+      character: own drills, own schedule, and it can be picked as the
+      dummy.
+    </p>
+
+    <label class="field-row">
+      <span class="field-row__label">Name</span>
+      <input id="charName" class="field-row__input" type="text" maxlength="28"
+             placeholder="Baiken" autocomplete="off">
+    </label>
+
+    <label class="field-row">
+      <span class="field-row__label">Short</span>
+      <input id="charShort" class="field-row__input" type="text" maxlength="3"
+             placeholder="BA" autocomplete="off">
+    </label>
+
+    <label class="field-row">
+      <span class="field-row__label">Picture</span>
+      <input id="charIconUrl" class="field-row__input" type="url"
+             placeholder="https://... (optional)" autocomplete="off">
+    </label>
+
+    <p id="charError" class="game-editor__error" hidden></p>
+
+    <section class="setting" id="charOwnBox" hidden>
+      <h3 class="setting__title">Added by you</h3>
+      <div id="charOwn" class="train-cats"></div>
+    </section>
+
+    <div class="dialog__actions">
+      <button type="button" id="charCancel" class="dialog__btn is-quiet">Cancel</button>
+      <button type="button" id="charSave" class="dialog__btn is-primary">Add character</button>
+    </div>
+  </dialog>
+
+  <!-- Eine eigene Routine: welche Drills, in welcher Reihenfolge, wie oft. -->
+  <dialog id="routineDialog" class="dialog dialog--wide">
+    <h2 class="dialog__title">Training routine</h2>
+
+    <label class="routine-name">
+      <span class="routine-name__label">Name</span>
+      <input id="routineName" class="routine-name__input" type="text"
+             maxlength="40" placeholder="Warm-up, oki practice, ...">
+    </label>
+
+    <section class="setting">
+      <h3 class="setting__title">Steps</h3>
+      <p class="setting__hint">
+        They run top to bottom, exactly as listed. The same drill may
+        appear as often as you like - useful for pressure loops, or for
+        several combos off the same starter.
+      </p>
+      <p id="routineEmpty" class="setting__hint routine-empty" hidden>
+        Nothing here yet. Pick a drill below to start.
+      </p>
+      <p id="routineGone" class="setting__hint routine-gone" hidden>
+        Some steps pointed at drills that no longer exist. They were dropped.
+      </p>
+      <ol id="routineSteps" class="routine-steps"></ol>
+    </section>
+
+    <section class="setting">
+      <h3 class="setting__title">Add a drill</h3>
+      <div id="routineSource" class="routine-source"></div>
+    </section>
+
+    <div class="dialog__actions">
+      <button type="button" id="routineDrop" class="dialog__btn is-danger">Delete routine</button>
+      <button type="button" id="routineCancel" class="dialog__btn is-quiet">Cancel</button>
+      <button type="button" id="routineSave" class="dialog__btn is-primary">Save routine</button>
+    </div>
+  </dialog>
+
   <!-- Einstellungen fuer das Training -->
   <!-- Eigenes Spiel: reiner Text, damit es sich weitergeben laesst. -->
   <dialog id="gameDialog" class="dialog dialog--wide">

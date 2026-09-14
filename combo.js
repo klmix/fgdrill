@@ -60,6 +60,10 @@ const DRILL_STATE = "drill";
 
 const CATEGORY_DEFAULTS = [DRILL_STATE];
 
+// Schluessel fuer "in keiner Kategorie". Leer, damit er mit keinem
+// echten Namen zusammenfallen kann.
+const NO_CATEGORY = "";
+
 // Zeichen, die in einem regulaeren Ausdruck etwas bedeuten, entschaerfen.
 // Notwendig, weil Schreibweisen wie "(CH)" woertlich gemeint sind.
 function escapeRe(text) {
@@ -146,8 +150,10 @@ function buildColorRoles(n) {
 // das macht switchGame().
 function applyGameData(game) {
   GAME = game;
-  CHARACTERS = game.characters;
-  CHAR_BY_ID = new Map(game.characters.map((c) => [c.id, c]));
+  // Eigene Kopie: die eigenen Charaktere kommen spaeter dazu, und die
+  // Liste der Spieldatei darf davon nichts mitbekommen.
+  CHARACTERS = [...game.characters];
+  CHAR_BY_ID = new Map(CHARACTERS.map((c) => [c.id, c]));
   // Ohne Angabe steht das ganze Roster zur Wahl. Die Liste ist nur
   // noetig, wenn ein Teil hinter einem Zusatzkauf liegt.
   BASE_ROSTER = game.baseRoster ?? game.characters.map((c) => c.id);
@@ -160,6 +166,15 @@ function applyGameData(game) {
   ACTION_FORM = notation.actionForm;
   BUTTONS = notation.buttons;
   COLOR_ROLES = buildColorRoles(game.notation);
+}
+
+// Die selbst angelegten Charaktere haengen hinten an der Liste des Spiels.
+// Sie stehen damit ueberall zur Verfuegung - Auswahl, Gegner, Sortierung -
+// ohne dass eine einzelne Stelle sie gesondert kennen muesste.
+function applyCustomChars() {
+  CHARACTERS = [...GAME.characters, ...state.customChars];
+  CHAR_BY_ID = new Map(CHARACTERS.map((c) => [c.id, c]));
+  for (const char of state.customChars) state.selected.add(char.id);
 }
 
 // Muss vor allem anderen laufen: der Zustand unten greift schon darauf zu.
@@ -198,6 +213,8 @@ const state = {
   groupByCategory: true,  // in der Liste nach Kategorie gruppieren?
   activeStates: new Set(),   // was die naechste Combo mitbekommt
   reviewed: {},              // Tagespensum je Charakter: { day, count }
+  routines: [],              // eigene Trainingsplaene, siehe unten
+  customChars: [],           // selbst angelegte Charaktere, siehe unten
 };
 
 // Marken duerfen mit einem Zeichen beginnen, z.B. "🎯 drill". Das Zeichen
@@ -330,6 +347,8 @@ function resetStateForGame() {
   state.category = null;
   state.activeStates = new Set();
   state.reviewed = {};
+  state.routines = [];
+  state.customChars = [];
   state.settings = defaultSettings();
 }
 
@@ -603,13 +622,6 @@ function dueSelection(charId) {
   return [...drill, ...bekannt, ...neu.slice(0, newBudgetLeft(charId))];
 }
 
-// Grinden heisst: ohne Plan ueben. Das ist der Fall bei einer gezielten
-// Runde, bei abgeschalteter Wiederholung, und wenn heute nichts ansteht.
-function isGrindMode(charId = state.character) {
-  if (!state.settings.sr.enabled) return true;
-  return dueSelection(charId).length === 0;
-}
-
 // Was steht heute an? Erst die faelligsten, dann in Trainingsreihenfolge.
 // Rueckgabe sind Paare aus Combo und dem Gegner, auf den sie geuebt wird.
 // Ein Eintrag wird zu einer oder mehreren Karten: die Teile einzeln und,
@@ -679,13 +691,54 @@ function charactersByActivity() {
   return [...mitDrills, ...ohne];
 }
 
-function trainingQueue(charId) {
-  const aktiv = state.entries.filter((e) => e.character === charId && !e.disabled);
+// Alles, was sich fuer diesen Charakter ueben laesst.
+function trainableEntries(charId) {
+  return state.entries.filter((e) => e.character === charId && !e.disabled);
+}
 
-  const faellig = dueSelection(charId);
-  return faellig.length > 0
-    ? expandQueue(ordneRunde(faellig), false)
-    : expandQueue(ordneRunde(aktiv), true);
+// Die Runde nach Plan: nur was heute ansteht, und die Noten zaehlen.
+function srQueue(charId) {
+  return expandQueue(ordneRunde(dueSelection(charId)), false);
+}
+
+// Gezielt ueben: die gewaehlten Kategorien, ohne Ruecksicht auf den Plan.
+// Der leere Schluessel steht fuer "in keiner Kategorie".
+function grindQueue(charId, kategorien) {
+  const auswahl = trainableEntries(charId)
+    .filter((e) => kategorien.has(categoryOf(e) ?? NO_CATEGORY));
+  return expandQueue(ordneRunde(auswahl), true);
+}
+
+// Die Schritte einer Routine, die es noch gibt. Ein Schritt darf mehrfach
+// vorkommen - genau das ist der Zweck.
+function routineSteps(routine) {
+  const bekannt = new Map(trainableEntries(routine.char).map((e) => [e.id, e]));
+  return routine.items.map((id) => bekannt.get(id)).filter(Boolean);
+}
+
+// Nach einer Routine ueben: die Reihenfolge stammt vom Benutzer und wird
+// nicht angetastet - weder sortiert noch gemischt. Der Gegner wird je
+// Schritt gewuerfelt, denn gruppieren wuerde die Reihenfolge brechen.
+function routineQueue(routine) {
+  const queue = [];
+
+  for (const entry of routineSteps(routine)) {
+    let gegner = null;
+    if (state.settings.randomCharacter) {
+      const moeglich = [...moeglicheGegner(entry)];
+      gegner = moeglich.length
+        ? moeglich[Math.floor(Math.random() * moeglich.length)]
+        : null;
+    }
+    for (const karte of cardsOf(entry, true)) {
+      queue.push({ entry, charId: gegner, teil: karte.teil });
+    }
+  }
+  return queue;
+}
+
+function routinesFor(charId) {
+  return state.routines.filter((r) => r.char === charId);
 }
 
 // Sortieren und, wenn gewuenscht, auf Gegner aufteilen.
@@ -1134,9 +1187,10 @@ function charIcon(char, className) {
   // Portraits liegen unter assets/chars/<spiel>/<id>.png . Ein Spiel ohne
   // Bilder setzt portraits: false - sonst liefe jeder Aufbau in dreissig
   // vergebliche Anfragen. Fehlt ein einzelnes Bild, bleibt das Kuerzel.
-  if (GAME.portraits !== false) {
+  // Selbst angelegte Charaktere bringen ihr Bild als Link mit.
+  if (char.icon || GAME.portraits !== false) {
     const img = document.createElement("img");
-    img.src = "assets/chars/" + GAME.id + "/" + char.id + ".png";
+    img.src = char.icon || "assets/chars/" + GAME.id + "/" + char.id + ".png";
     img.alt = "";
     img.addEventListener("error", () => img.remove());
     icon.append(img);
@@ -1209,6 +1263,16 @@ function buildWhoGrid() {
 
     whoGrid.append(tile);
   }
+
+  // Fehlt jemand im Spiel, legt man ihn selbst an.
+  const plus = document.createElement("button");
+  plus.type = "button";
+  plus.className = "char char--add";
+  plus.dataset.addChar = "1";
+  plus.title = "Add your own character";
+  plus.setAttribute("aria-label", "Add your own character");
+  plus.textContent = "+";
+  whoGrid.append(plus);
 }
 
 // Die Zahl im Kreis. Nur wo etwas ansteht - eine Null waere kein Hinweis,
@@ -1239,6 +1303,12 @@ function syncWho() {
 }
 
 whoGrid.addEventListener("click", (e) => {
+  // Das Plus traegt dieselbe Klasse wie die Kacheln, also zuerst pruefen.
+  if (e.target.closest("[data-add-char]")) {
+    openCharDialog();
+    return;
+  }
+
   const tile = e.target.closest(".char");
   if (!tile) return;
 
@@ -3028,21 +3098,21 @@ function syncDojo() {
 
   const name = CHAR_BY_ID.get(state.character).name;
   const hatCombos = state.entries.some((e) => e.character === state.character);
-  const anstehend = trainingQueue(state.character).length;
-  const grind = isGrindMode();
+  const uebbar = trainableEntries(state.character).length;
+  const faellig = dueCount(state.character);
 
-  dojoBtn.disabled = anstehend === 0;
-  dojoBtn.classList.toggle("is-grind", grind && anstehend > 0);
-  dojoLabel.textContent = grind ? "Start grinding" : "Start training";
+  // Die Art der Runde steht erst im Fenster fest - der Knopf heisst
+  // deshalb immer gleich und zeigt nur an, ob es etwas zu tun gibt.
+  dojoBtn.disabled = uebbar === 0;
+  dojoLabel.textContent = "Start training";
 
   dojoBtn.title = !hatCombos
     ? "Nothing saved for " + name + " yet"
-    : anstehend === 0
+    : uebbar === 0
       ? "Nothing to train for " + name
-      : grind
-        ? "Nothing due - grind all " + anstehend + " for " + name +
-          " (this does not change the schedule)"
-        : "Start training with " + name + " (" + anstehend + ")";
+      : faellig > 0
+        ? "Train " + name + " - " + faellig + " due"
+        : "Train " + name + " - nothing due today";
 }
 
 function formatTime(ms) {
@@ -3438,11 +3508,15 @@ function setDrillEditing(an) {
 
 drillEditBtn.addEventListener("click", () => setDrillEditing(!state.training?.editing));
 
-function startTraining() {
-  const queue = trainingQueue(state.character);
+function startTraining(plan) {
+  const charId = state.character;
+  const queue = plan.mode === "sr" ? srQueue(charId)
+    : plan.mode === "routine" ? routineQueue(plan.routine)
+    : grindQueue(charId, plan.cats);
+
   if (queue.length === 0) {
-    showNotice("Nothing due for " + CHAR_BY_ID.get(state.character).name +
-               " today.", "error");
+    showNotice("Nothing to train for " + CHAR_BY_ID.get(charId).name + ".",
+               "error");
     return;
   }
 
@@ -3451,7 +3525,7 @@ function startTraining() {
                      elapsed: 0, since: Date.now(),
                      editing: false, done: [], finished: false,
                      stopped: false, comboStart: 0,
-                     temporary: isGrindMode() };
+                     temporary: plan.mode !== "sr" };
 
   drillMain.hidden = false;
   drillDone.hidden = true;
@@ -3510,7 +3584,7 @@ function stopTraining() {
 }
 
 dojoBtn.addEventListener("click", () => {
-  state.training ? stopTraining() : startTraining();
+  state.training ? stopTraining() : openTrainPicker();
 });
 
 drillGrades.addEventListener("click", (e) => {
@@ -3540,7 +3614,621 @@ drillGrades.addEventListener("click", (e) => {
   updateFlipHeight();
 });
 
-// --- Zahnrad: gezielte Runde oder Einstellungen ---------------
+// --- Welche Runde? ------------------------------------------
+// Der Startknopf fragt, statt die Art des Trainings aus der Lage zu
+// raten: nach Plan, oder gezielt auf ausgesuchte Kategorien.
+
+const trainDlg     = document.getElementById("trainDialog");
+const trainWho     = document.getElementById("trainWho");
+const trainModes   = document.getElementById("trainModes");
+const trainDue     = document.getElementById("trainDue");
+const trainAmount  = document.getElementById("trainGrindCount");
+const trainPick    = document.getElementById("trainPick");
+const trainCats    = document.getElementById("trainCats");
+const trainGo      = document.getElementById("trainGo");
+const trainRoutinePick  = document.getElementById("trainRoutinePick");
+const trainRoutines     = document.getElementById("trainRoutines");
+const trainRoutineCount = document.getElementById("trainRoutineCount");
+
+let trainMode  = "sr";
+let trainGroups = [];
+let grindPick  = null;    // null = noch nie gewaehlt, dann gilt alles
+let pickedRoutine = null; // Kennung der gewaehlten Routine
+
+// Welche Kategorien hat dieser Charakter, und wie viele Karten haengen
+// daran? Reihenfolge wie in der Liste: Kategorien zuerst, Uebriges unten.
+function grindGroups(charId) {
+  const zaehler = new Map();
+
+  for (const entry of trainableEntries(charId)) {
+    const key = categoryOf(entry) ?? NO_CATEGORY;
+    zaehler.set(key, (zaehler.get(key) ?? 0) + cardsOf(entry, true).length);
+  }
+
+  const namen = state.categories.filter((n) => zaehler.has(n));
+  for (const key of zaehler.keys()) {
+    if (key !== NO_CATEGORY && !namen.includes(key)) namen.push(key);
+  }
+  if (zaehler.has(NO_CATEGORY)) namen.push(NO_CATEGORY);
+
+  return namen.map((key) => ({ key, count: zaehler.get(key) }));
+}
+
+function buildTrainCats() {
+  trainCats.innerHTML = "";
+
+  for (const gruppe of trainGroups) {
+    const item = document.createElement("button");
+    item.type = "button";
+    item.className = "train-cat";
+    item.dataset.cat = gruppe.key;
+
+    // Leere Box fuer "ohne Kategorie": haelt die Namen auf einer Linie.
+    const marke = gruppe.key === NO_CATEGORY
+      ? document.createElement("span")
+      : tagMarker(gruppe.key, "menu__dot");
+    if (gruppe.key === NO_CATEGORY) marke.className = "menu__dot";
+
+    const name = document.createElement("span");
+    name.className = "train-cat__name";
+    name.textContent = gruppe.key === NO_CATEGORY
+      ? "No category"
+      : categoryLabelOf(tagLabel(gruppe.key));
+
+    const zahl = document.createElement("span");
+    zahl.className = "train-cat__count";
+    zahl.textContent = gruppe.count;
+
+    item.append(marke, name, zahl);
+    item.insertAdjacentHTML("beforeend", STATE_CHECK_SVG);
+    trainCats.append(item);
+  }
+}
+
+// Die gespeicherten Plaene dieses Charakters, einer davon gewaehlt.
+function buildTrainRoutines() {
+  trainRoutines.innerHTML = "";
+
+  const meine = routinesFor(state.character);
+  if (meine.length === 0) {
+    const leer = document.createElement("p");
+    leer.className = "setting__hint routine-empty";
+    leer.textContent = "No routine yet. Build one and it stays here.";
+    trainRoutines.append(leer);
+    return;
+  }
+
+  for (const routine of meine) {
+    const zeile = document.createElement("div");
+    zeile.className = "routine-row";
+    zeile.dataset.routine = routine.id;
+
+    const waehlen = document.createElement("button");
+    waehlen.type = "button";
+    waehlen.className = "train-cat routine-row__pick";
+    waehlen.dataset.pickRoutine = routine.id;
+
+    const name = document.createElement("span");
+    name.className = "train-cat__name";
+    name.textContent = routine.name;
+
+    const zahl = document.createElement("span");
+    zahl.className = "train-cat__count";
+    const schritte = routineSteps(routine).length;
+    zahl.textContent = schritte + (schritte === 1 ? " step" : " steps");
+
+    waehlen.append(name, zahl);
+    waehlen.insertAdjacentHTML("beforeend", STATE_CHECK_SVG);
+
+    const stift = document.createElement("button");
+    stift.type = "button";
+    stift.className = "routine-row__edit";
+    stift.dataset.editRoutine = routine.id;
+    stift.title = "Edit routine";
+    stift.setAttribute("aria-label", "Edit routine");
+    stift.insertAdjacentHTML("beforeend", PENCIL_SVG);
+
+    zeile.append(waehlen, stift);
+    trainRoutines.append(zeile);
+  }
+}
+
+function selectedRoutine() {
+  return routinesFor(state.character).find((r) => r.id === pickedRoutine) ?? null;
+}
+
+function syncTrainUi() {
+  trainModes.querySelectorAll("[data-mode]").forEach((b) => {
+    const an = b.dataset.mode === trainMode;
+    b.classList.toggle("is-active", an);
+    b.setAttribute("aria-pressed", String(an));
+  });
+
+  trainPick.hidden = trainMode !== "grind";
+  trainRoutinePick.hidden = trainMode !== "routine";
+
+  trainCats.querySelectorAll("[data-cat]").forEach((b) => {
+    const an = grindPick.has(b.dataset.cat);
+    b.classList.toggle("is-active", an);
+    b.setAttribute("aria-pressed", String(an));
+  });
+
+  trainRoutines.querySelectorAll("[data-pick-routine]").forEach((b) => {
+    const an = b.dataset.pickRoutine === pickedRoutine;
+    b.classList.toggle("is-active", an);
+    b.setAttribute("aria-pressed", String(an));
+  });
+
+  const karten = trainGroups
+    .filter((g) => grindPick.has(g.key))
+    .reduce((summe, g) => summe + g.count, 0);
+  trainAmount.textContent = karten === 0 ? "nothing picked" : karten + " items";
+
+  const gewaehlt = selectedRoutine();
+  const schritte = gewaehlt ? routineSteps(gewaehlt).length : 0;
+  const anzahl = routinesFor(state.character).length;
+  trainRoutineCount.textContent = gewaehlt
+    ? schritte + (schritte === 1 ? " step" : " steps")
+    : anzahl === 0 ? "none yet"
+    : anzahl + (anzahl === 1 ? " routine" : " routines");
+
+  trainGo.disabled =
+    (trainMode === "grind" && karten === 0) ||
+    (trainMode === "routine" && schritte === 0);
+}
+
+function openTrainPicker() {
+  const charId = state.character;
+  trainGroups = grindGroups(charId);
+
+  // Nur behalten, was es bei diesem Charakter gibt - sonst uebte man
+  // nach einem Wechsel gegen eine leere Auswahl.
+  const vorhanden = new Set(trainGroups.map((g) => g.key));
+  grindPick = new Set([...(grindPick ?? vorhanden)].filter((k) => vorhanden.has(k)));
+  if (grindPick.size === 0) grindPick = new Set(vorhanden);
+
+  trainWho.textContent = CHAR_BY_ID.get(charId).name;
+
+  // Nach Plan geht nur, wenn er an ist und heute etwas trifft.
+  const faellig = dueCount(charId);
+  const planAn = state.settings.sr.enabled;
+  const nachPlan = planAn && faellig > 0;
+
+  const srBtn = trainModes.querySelector('[data-mode="sr"]');
+  srBtn.disabled = !nachPlan;
+  srBtn.title = !planAn
+    ? "Spaced repetition is off in the preferences"
+    : faellig === 0
+      ? "Nothing due today"
+      : "";
+  trainDue.textContent = !planAn ? "off"
+    : faellig > 0 ? faellig + " due"
+    : "nothing due";
+
+  // Eine Routine, die es nicht mehr gibt, darf nicht gewaehlt bleiben.
+  if (!selectedRoutine()) {
+    pickedRoutine = routinesFor(charId)[0]?.id ?? null;
+  }
+
+  trainMode = nachPlan ? "sr" : "grind";
+  buildTrainCats();
+  buildTrainRoutines();
+  syncTrainUi();
+  trainDlg.showModal();
+  trainGo.focus();
+}
+
+trainModes.addEventListener("click", (e) => {
+  const btn = e.target.closest("[data-mode]");
+  if (!btn || btn.disabled) return;
+  trainMode = btn.dataset.mode;
+  syncTrainUi();
+});
+
+trainCats.addEventListener("click", (e) => {
+  const btn = e.target.closest("[data-cat]");
+  if (!btn) return;
+  const key = btn.dataset.cat;
+  grindPick.has(key) ? grindPick.delete(key) : grindPick.add(key);
+  syncTrainUi();
+});
+
+trainRoutines.addEventListener("click", (e) => {
+  const stift = e.target.closest("[data-edit-routine]");
+  if (stift) {
+    openRoutineEditor(state.routines.find((r) => r.id === stift.dataset.editRoutine));
+    return;
+  }
+
+  const btn = e.target.closest("[data-pick-routine]");
+  if (!btn) return;
+  pickedRoutine = btn.dataset.pickRoutine;
+  syncTrainUi();
+});
+
+document.getElementById("routineNew")
+  .addEventListener("click", () => openRoutineEditor(null));
+
+trainPick.addEventListener("click", (e) => {
+  const wahl = e.target.closest("[data-pick]")?.dataset.pick;
+  if (!wahl) return;
+  grindPick = wahl === "all" ? new Set(trainGroups.map((g) => g.key)) : new Set();
+  syncTrainUi();
+});
+
+document.getElementById("trainCancel").addEventListener("click", () => trainDlg.close());
+
+trainGo.addEventListener("click", () => {
+  const routine = selectedRoutine();
+  if (trainMode === "routine" && !routine) return;
+
+  trainDlg.close();
+  startTraining(
+    trainMode === "sr" ? { mode: "sr" }
+    : trainMode === "routine" ? { mode: "routine", routine }
+    : { mode: "grind", cats: new Set(grindPick) });
+});
+
+// --- Eigene Charaktere --------------------------------------
+// Sie liegen beim Spiel, nicht global: ein selbst angelegter Gast
+// gehoert in das Spiel, in dem man ihn spielt.
+
+const charDlg      = document.getElementById("charDialog");
+const charNameIn   = document.getElementById("charName");
+const charShortIn  = document.getElementById("charShort");
+const charIconIn   = document.getElementById("charIconUrl");
+const charErrorEl  = document.getElementById("charError");
+const charOwnBox   = document.getElementById("charOwnBox");
+const charOwnList  = document.getElementById("charOwn");
+
+// Aus "Baiken" wird "baiken"; Gleichnamiges bekommt eine Ziffer.
+function charIdFor(name) {
+  const roh = name.toLowerCase().replace(/[^a-z0-9]+/g, "") || "char";
+  let id = roh;
+  for (let i = 2; CHAR_BY_ID.has(id); i++) id = roh + i;
+  return id;
+}
+
+function charError(text) {
+  charErrorEl.textContent = text;
+  charErrorEl.hidden = !text;
+}
+
+function openCharDialog() {
+  charNameIn.value = "";
+  charShortIn.value = "";
+  charIconIn.value = "";
+  charError("");
+  buildCharOwn();
+  closePopover(whoPop);
+  charDlg.showModal();
+  charNameIn.focus();
+}
+
+// Was man selbst angelegt hat, laesst sich hier auch wieder loswerden.
+function buildCharOwn() {
+  charOwnList.innerHTML = "";
+  charOwnBox.hidden = state.customChars.length === 0;
+
+  for (const char of state.customChars) {
+    const zeile = document.createElement("div");
+    zeile.className = "char-own";
+
+    zeile.append(charIcon(char, "char-own__icon"));
+
+    const name = document.createElement("span");
+    name.className = "char-own__name";
+    name.textContent = char.name;
+
+    const zahl = document.createElement("span");
+    zahl.className = "train-cat__count";
+    const n = state.entries.filter((e) => e.character === char.id).length;
+    zahl.textContent = n === 0 ? "" : n + (n === 1 ? " item" : " items");
+
+    const weg = document.createElement("button");
+    weg.type = "button";
+    weg.className = "routine-step__btn";
+    weg.dataset.dropChar = char.id;
+    weg.textContent = "×";
+    weg.title = "Remove character";
+    weg.setAttribute("aria-label", "Remove character");
+
+    zeile.append(name, zahl, weg);
+    charOwnList.append(zeile);
+  }
+}
+
+charOwnList.addEventListener("click", (e) => {
+  const id = e.target.closest("[data-drop-char]")?.dataset.dropChar;
+  if (!id) return;
+
+  // Mit dem Charakter verschwaenden auch seine Drills - lieber erst
+  // fragen, als sie still mitzunehmen.
+  const drills = state.entries.filter((entry) => entry.character === id).length;
+  if (drills > 0) {
+    charError(CHAR_BY_ID.get(id).name + " still has " + drills +
+              (drills === 1 ? " drill. Delete it first." : " drills. Delete them first."));
+    return;
+  }
+
+  state.customChars = state.customChars.filter((c) => c.id !== id);
+  state.routines = state.routines.filter((r) => r.char !== id);
+  state.settings.allowedChars.delete(id);
+  applyCustomChars();
+  if (!CHAR_BY_ID.has(state.character)) state.character = CHARACTERS[0].id;
+
+  charError("");
+  refreshRosterUi();
+  buildCharOwn();
+});
+
+// Alles, was die Charakterliste zeigt, neu aufbauen.
+function refreshRosterUi() {
+  buildGrid();
+  buildWhoGrid();
+  allowedGrid.innerHTML = "";     // wird beim naechsten Oeffnen neu gebaut
+  syncWho();
+  render();
+  renderEntries();
+  persist();
+}
+
+document.getElementById("charSave").addEventListener("click", () => {
+  const name = charNameIn.value.trim();
+  if (!name) {
+    charError("A name is needed.");
+    charNameIn.focus();
+    return;
+  }
+
+  if (CHARACTERS.some((c) => c.name.toLowerCase() === name.toLowerCase())) {
+    charError("There is already a character called " + name + ".");
+    return;
+  }
+
+  const link = charIconIn.value.trim();
+  if (link && !/^https?:\/\//i.test(link)) {
+    charError("The picture needs a full link, starting with https://");
+    return;
+  }
+
+  // Ohne Kuerzel: die ersten zwei Buchstaben. Es steht nur da, solange
+  // kein Bild geladen ist.
+  const kurz = (charShortIn.value.trim() || name.slice(0, 2)).toUpperCase();
+
+  const char = { id: charIdFor(name), name, short: kurz, icon: link };
+  state.customChars.push(char);
+  applyCustomChars();
+
+  // Wer sich einen Charakter anlegt, will mit ihm weitermachen.
+  state.character = char.id;
+  state.settings.allowedChars.add(char.id);
+
+  charDlg.close();
+  refreshRosterUi();
+});
+
+document.getElementById("charCancel").addEventListener("click", () => charDlg.close());
+
+// --- Der Baukasten fuer eine Routine ------------------------
+// Eine Routine ist eine Liste von Verweisen auf Combos. Mehrfach
+// derselbe Verweis ist ausdruecklich erlaubt - daran haengt der Nutzen
+// bei Druckserien oder mehreren Enden auf denselben Anfang.
+
+const routineDlg     = document.getElementById("routineDialog");
+const routineNameIn  = document.getElementById("routineName");
+const routineList    = document.getElementById("routineSteps");
+const routineSource  = document.getElementById("routineSource");
+const routineEmptyEl = document.getElementById("routineEmpty");
+const routineGoneEl  = document.getElementById("routineGone");
+const routineDropBtn = document.getElementById("routineDrop");
+const routineSaveBtn = document.getElementById("routineSave");
+
+let routineDraft = null;
+
+// "Routine 3": der erste Name, den es noch nicht gibt.
+function nextRoutineName(charId) {
+  const belegt = new Set(routinesFor(charId).map((r) => r.name));
+  for (let i = 1; ; i++) {
+    const name = "Routine " + i;
+    if (!belegt.has(name)) return name;
+  }
+}
+
+function openRoutineEditor(routine) {
+  const vorhanden = !!routine;
+  routineDraft = vorhanden
+    ? { ...routine, items: [...routine.items] }
+    : { id: newId(), name: "", char: state.character, items: [] };
+
+  // Ein Schritt, dessen Combo geloescht wurde, laesst sich nicht zeigen.
+  // Er faellt hier weg, damit die Liste zeigt, was wirklich laufen wuerde.
+  const bekannt = new Set(trainableEntries(routineDraft.char).map((e) => e.id));
+  const vorher = routineDraft.items.length;
+  routineDraft.items = routineDraft.items.filter((id) => bekannt.has(id));
+  routineGoneEl.hidden = routineDraft.items.length === vorher;
+
+  routineNameIn.value = routineDraft.name;
+  routineNameIn.placeholder = nextRoutineName(routineDraft.char);
+  routineDropBtn.hidden = !vorhanden;
+
+  buildRoutineSteps();
+  buildRoutineSource();
+  routineDlg.showModal();
+  routineNameIn.focus();
+}
+
+function buildRoutineSteps() {
+  routineList.innerHTML = "";
+  routineEmptyEl.hidden = routineDraft.items.length > 0;
+  routineSaveBtn.disabled = routineDraft.items.length === 0;
+  routineSaveBtn.title = routineDraft.items.length === 0
+    ? "A routine needs at least one step"
+    : "";
+
+  const bekannt = new Map(trainableEntries(routineDraft.char).map((e) => [e.id, e]));
+
+  routineDraft.items.forEach((id, i) => {
+    const entry = bekannt.get(id);
+    if (!entry) return;
+
+    const zeile = document.createElement("li");
+    zeile.className = "routine-step";
+    // Merkt sich, an welcher Stelle die Zeile gebaut wurde. Nach dem
+    // Ziehen laesst sich die neue Reihenfolge daran ablesen.
+    zeile.dataset.row = String(i);
+
+    zeile.insertAdjacentHTML("beforeend", GRIP_SVG.replace("order__grip", "routine-step__grip"));
+
+    const nummer = document.createElement("span");
+    nummer.className = "routine-step__no";
+
+    const marke = categoryOf(entry)
+      ? tagMarker(categoryOf(entry), "menu__dot")
+      : document.createElement("span");
+    if (!categoryOf(entry)) marke.className = "menu__dot";
+
+    const text = document.createElement("span");
+    text.className = "routine-step__combo";
+    text.innerHTML = tokenize(entry.text);
+
+    const werkzeug = document.createElement("span");
+    werkzeug.className = "routine-step__tools";
+
+    const knoepfe = [
+      ["dup",  "+1",      "Use once more"],
+      ["drop", "×", "Remove step"],
+    ];
+
+    for (const [act, zeichen, titel] of knoepfe) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "routine-step__btn";
+      b.dataset.step = String(i);
+      b.dataset.act = act;
+      b.textContent = zeichen;
+      b.title = titel;
+      b.setAttribute("aria-label", titel);
+      werkzeug.append(b);
+    }
+
+    zeile.append(nummer, marke, text, werkzeug);
+    routineList.append(zeile);
+  });
+}
+
+function buildRoutineSource() {
+  routineSource.innerHTML = "";
+  const alle = trainableEntries(routineDraft.char);
+
+  if (alle.length === 0) {
+    const leer = document.createElement("p");
+    leer.className = "setting__hint";
+    leer.textContent = "Nothing saved for this character yet.";
+    routineSource.append(leer);
+    return;
+  }
+
+  for (const entry of alle) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "routine-add";
+    b.dataset.add = entry.id;
+    b.title = "Add to the routine";
+
+    const marke = categoryOf(entry)
+      ? tagMarker(categoryOf(entry), "menu__dot")
+      : document.createElement("span");
+    if (!categoryOf(entry)) marke.className = "menu__dot";
+
+    const text = document.createElement("span");
+    text.className = "routine-add__combo";
+    text.innerHTML = tokenize(entry.text);
+
+    const plus = document.createElement("span");
+    plus.className = "routine-add__plus";
+    plus.textContent = "+";
+
+    b.append(marke, text, plus);
+    routineSource.append(b);
+  }
+}
+
+routineList.addEventListener("click", (e) => {
+  const btn = e.target.closest("[data-act]");
+  if (!btn || !routineDraft) return;
+
+  const i = Number(btn.dataset.step);
+  const items = routineDraft.items;
+
+  if (btn.dataset.act === "dup") {
+    items.splice(i + 1, 0, items[i]);
+  } else if (btn.dataset.act === "drop") {
+    items.splice(i, 1);
+  }
+
+  buildRoutineSteps();
+});
+
+makeSortable(routineList, {
+  item: ".routine-step",
+  handle: ".routine-step__grip",
+  onDrop: () => {
+    if (!routineDraft) return;
+    routineDraft.items = [...routineList.children]
+      .map((zeile) => routineDraft.items[Number(zeile.dataset.row)]);
+    buildRoutineSteps();
+  },
+});
+
+routineSource.addEventListener("click", (e) => {
+  const id = e.target.closest("[data-add]")?.dataset.add;
+  if (!id || !routineDraft) return;
+  routineDraft.items.push(id);
+  buildRoutineSteps();
+  // Der neue Schritt steht ganz unten - dorthin schauen.
+  routineList.lastElementChild?.scrollIntoView({ block: "nearest" });
+});
+
+routineSaveBtn.addEventListener("click", () => {
+  if (!routineDraft || routineDraft.items.length === 0) return;
+
+  routineDraft.name = routineNameIn.value.trim() || nextRoutineName(routineDraft.char);
+
+  const i = state.routines.findIndex((r) => r.id === routineDraft.id);
+  if (i >= 0) state.routines[i] = routineDraft;
+  else state.routines.push(routineDraft);
+
+  // Was man gerade gebaut hat, will man auch laufen lassen.
+  pickedRoutine = routineDraft.id;
+  trainMode = "routine";
+  routineDraft = null;
+
+  persist();
+  routineDlg.close();
+  buildTrainRoutines();
+  syncTrainUi();
+});
+
+routineDropBtn.addEventListener("click", () => {
+  if (!routineDraft) return;
+  state.routines = state.routines.filter((r) => r.id !== routineDraft.id);
+  if (pickedRoutine === routineDraft.id) pickedRoutine = null;
+  routineDraft = null;
+
+  persist();
+  routineDlg.close();
+  buildTrainRoutines();
+  if (!selectedRoutine()) pickedRoutine = routinesFor(state.character)[0]?.id ?? null;
+  syncTrainUi();
+});
+
+document.getElementById("routineCancel").addEventListener("click", () => {
+  routineDraft = null;
+  routineDlg.close();
+});
+
+// --- Zahnrad: Einstellungen ---------------------------------
 
 function openPreferences() {
   buildOrderList();
@@ -4036,7 +4724,6 @@ function buildOrderList() {
 
     const item = document.createElement("li");
     item.className = "order__item" + (fest ? " order__item--fixed" : "");
-    item.draggable = true;
     item.dataset.state = token;
 
     let punkt;
@@ -4062,42 +4749,108 @@ function buildOrderList() {
 }
 
 // --- Ziehen und Ablegen --------------------------------------
-// Die Liste wird beim Ziehen live umgestellt; beim Loslassen lesen wir
-// die Reihenfolge aus dem Dokument zurueck.
-function elementNachCursor(y) {
-  const andere = [...orderList.querySelectorAll(".order__item:not(.is-dragging)")];
-  return andere.find((el) => {
-    const r = el.getBoundingClientRect();
-    return y < r.top + r.height / 2;
-  }) ?? null;
+// Eigene Mechanik statt der des Browsers. Dessen Zugbild haengt als
+// zweites, halbdurchsichtiges Abbild am Zeiger, waehrend die Zeile in
+// der Liste schon mitwandert - zwei Kopien derselben Sache, dazu der
+// Verbotszeiger, sobald man den Rand verlaesst. Auf dem Telefon laeuft
+// die Browser-Mechanik ausserdem gar nicht.
+//
+// Gemeinsam fuer jede sortierbare Liste: die Zeile wandert live durch
+// das Dokument, beim Loslassen liest der Aufrufer die Reihenfolge
+// zurueck.
+function makeSortable(liste, { item: itemSel, handle: handleSel, onDrop }) {
+  const SCHWELLE = 4;      // erst ab hier ist es ein Zug und kein Klick
+
+  let zieht = null;        // die Zeile, die gerade wandert
+  let wartet = null;       // angefasst, aber noch nicht weit genug bewegt
+  let zeiger = null;
+  let start = 0;
+
+  function zeileUnter(y) {
+    const andere = [...liste.querySelectorAll(itemSel)].filter((el) => el !== zieht);
+    return andere.find((el) => {
+      const r = el.getBoundingClientRect();
+      return y < r.top + r.height / 2;
+    }) ?? null;
+  }
+
+  // Am Rand einer scrollenden Liste mitlaufen, sonst kommt man in einer
+  // langen Routine nicht ans andere Ende.
+  function randlauf(y) {
+    if (liste.scrollHeight <= liste.clientHeight) return;
+    const r = liste.getBoundingClientRect();
+    if (y < r.top + 26) liste.scrollTop -= 8;
+    else if (y > r.bottom - 26) liste.scrollTop += 8;
+  }
+
+  liste.addEventListener("pointerdown", (e) => {
+    if (e.button !== 0) return;
+
+    const item = e.target.closest(itemSel);
+    if (!item || !liste.contains(item)) return;
+
+    const griff = handleSel ? e.target.closest(handleSel) : null;
+    // Knoepfe in der Zeile bleiben Knoepfe.
+    if (!griff && e.target.closest("button") && e.target.closest("button") !== item) return;
+    // Auf dem Telefon nur am Griff - sonst liesse sich die Liste, die
+    // ja scrollt, nicht mehr bewegen.
+    if (e.pointerType !== "mouse" && !griff) return;
+
+    wartet = item;
+    zeiger = e.pointerId;
+    start = e.clientY;
+  });
+
+  liste.addEventListener("pointermove", (e) => {
+    if (e.pointerId !== zeiger) return;
+
+    if (wartet && Math.abs(e.clientY - start) > SCHWELLE) {
+      zieht = wartet;
+      wartet = null;
+      zieht.classList.add("is-dragging");
+      liste.classList.add("is-sorting");
+      // Erst jetzt fangen: vor der Schwelle wuerde das Fangen den
+      // folgenden Klick auf einen Knopf in der Zeile verschlucken.
+      // Schlaegt es fehl, wird trotzdem gezogen - nur eben ohne Fang.
+      try { liste.setPointerCapture(zeiger); } catch { }
+    }
+    if (!zieht) return;
+
+    e.preventDefault();
+    const davor = zeileUnter(e.clientY);
+    if (davor === null) liste.append(zieht);
+    else if (davor !== zieht.nextElementSibling) liste.insertBefore(zieht, davor);
+
+    randlauf(e.clientY);
+  });
+
+  function ende(e) {
+    if (e.pointerId !== zeiger) return;
+
+    if (zieht) {
+      try { liste.releasePointerCapture(zeiger); } catch { }
+      zieht.classList.remove("is-dragging");
+      liste.classList.remove("is-sorting");
+      zieht = null;
+      onDrop();
+    }
+    wartet = null;
+    zeiger = null;
+  }
+
+  liste.addEventListener("pointerup", ende);
+  liste.addEventListener("pointercancel", ende);
 }
 
-orderList.addEventListener("dragstart", (e) => {
-  const item = e.target.closest(".order__item");
-  if (!item) return;
-  item.classList.add("is-dragging");
-  e.dataTransfer.effectAllowed = "move";
-  e.dataTransfer.setData("text/plain", item.dataset.state);
-});
-
-orderList.addEventListener("dragover", (e) => {
-  e.preventDefault();
-  const ziehend = orderList.querySelector(".is-dragging");
-  if (!ziehend) return;
-
-  const davor = elementNachCursor(e.clientY);
-  if (davor === null) orderList.append(ziehend);
-  else orderList.insertBefore(ziehend, davor);
-});
-
-orderList.addEventListener("dragend", () => {
-  const ziehend = orderList.querySelector(".is-dragging");
-  if (ziehend) ziehend.classList.remove("is-dragging");
-
-  state.settings.order =
-    [...orderList.querySelectorAll(".order__item")].map((el) => el.dataset.state);
-  syncDojo();
-  persist();
+makeSortable(orderList, {
+  item: ".order__item",
+  handle: ".order__grip",
+  onDrop: () => {
+    state.settings.order =
+      [...orderList.querySelectorAll(".order__item")].map((el) => el.dataset.state);
+    syncDojo();
+    persist();
+  },
 });
 
 // --- Erlaubte Gegner ------------------------------------------
@@ -4530,6 +5283,8 @@ function saveNow() {
     states: state.states,
     categories: state.categories,
     groupByCategory: state.groupByCategory,
+    customChars: state.customChars,
+    routines: state.routines,
     reviewed: state.reviewed,
     character: state.character,
     persistInput: persistBox.checked,
@@ -4551,6 +5306,20 @@ function saveNow() {
 function loadStored() {
   const daten = readJson(storageKey());
   if (!daten || typeof daten !== "object") return;
+
+  // Zuerst die eigenen Charaktere: alles Weitere - Eintraege, Routinen,
+  // erlaubte Gegner - wird gegen CHAR_BY_ID geprueft.
+  if (Array.isArray(daten.customChars)) {
+    state.customChars = daten.customChars
+      .filter((c) => c && c.id && c.name && !GAME.characters.some((g) => g.id === c.id))
+      .map((c) => ({
+        id: String(c.id),
+        name: String(c.name),
+        short: String(c.short ?? "").slice(0, 3),
+        icon: c.icon ? String(c.icon) : "",
+      }));
+    applyCustomChars();
+  }
 
   if (Array.isArray(daten.entries)) {
     // Nur Eintraege mit bekanntem Charakter uebernehmen.
@@ -4574,6 +5343,19 @@ function loadStored() {
     if (!state.categories.includes(DRILL_STATE)) state.categories.unshift(DRILL_STATE);
   }
   if (typeof daten.groupByCategory === "boolean") state.groupByCategory = daten.groupByCategory;
+
+  if (Array.isArray(daten.routines)) {
+    // Nur was sich noch ueben laesst: Charakter muss es geben, und ein
+    // Plan ohne Schritte waere ein leeres Versprechen.
+    state.routines = daten.routines
+      .filter((r) => r && CHAR_BY_ID.has(r.char) && Array.isArray(r.items))
+      .map((r) => ({
+        id: String(r.id ?? newId()),
+        name: String(r.name ?? ""),
+        char: r.char,
+        items: r.items.map(String),
+      }));
+  }
 
   if (daten.reviewed && typeof daten.reviewed === "object") state.reviewed = daten.reviewed;
   if (CHAR_BY_ID.has(daten.character)) state.character = daten.character;
