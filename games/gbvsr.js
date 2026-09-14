@@ -27,9 +27,7 @@ const GAME_GBVSR = {
     { id: "gran",          name: "Gran",           short: "GN" },
     { id: "granex",        name: "Gran (EX)",      short: "GR" },
     { id: "grimnir",       name: "Grimnir",        short: "GI" },
-    { id: "id",            name: "Id",             short: "ID" },   // ohne Bild auf Dustloop
     { id: "ilsa",          name: "Ilsa",           short: "IS" },
-    { id: "ilsaex",        name: "Ilsa (EX)",      short: "IL" },
     { id: "katalina",      name: "Katalina",       short: "KA" },
     { id: "ladiva",        name: "Ladiva",         short: "LA" },
     { id: "lancelot",      name: "Lancelot",       short: "LN" },
@@ -61,7 +59,7 @@ const GAME_GBVSR = {
     "ladiva", "metera", "lowain", "ferry", "zeta", "vaseraga", "narmaya",
     "soriz", "zooey", "cagliostro", "yuel", "anre", "eustace", "seox",
     "vira", "avatarbelial", "beelzebub", "vikala", "siegfried", "grimnir",
-    "nier", "beatrix", "sandalphon", "id", "anila", "belial",
+    "nier", "beatrix", "sandalphon", "anila", "belial",
   ],
 
   states: ["jumping", "crouching", "\u{1F3AF} drill"],
