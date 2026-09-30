@@ -5,6 +5,7 @@ const GAMES = [
   GAME_SF6,
   GAME_BBCF,
   GAME_GBVSR,
+  GAME_AL,
 ];
 
 const GAME_BY_ID = new Map(GAMES.map((g) => [g.id, g]));
